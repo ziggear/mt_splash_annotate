@@ -15,6 +15,24 @@ $FrameCache = Join-Path $env:LOCALAPPDATA "ManuTechHeightAnnotator\frame_cache"
 $DatasetsConfig = Join-Path $env:LOCALAPPDATA "ManuTechHeightAnnotator\height_annot_datasets.json"
 $ModelDir = Join-Path $Root "models\xgb_peak\060b_dino_quality"
 
+function Install-PythonWithWinget {
+  $winget = Get-Command winget -ErrorAction SilentlyContinue
+  if (!$winget) {
+    return $false
+  }
+
+  Write-Host "Python $MinPythonMajor.$MinPythonMinor+ was not found. Installing Python 3.12 with winget..."
+  winget install --id Python.Python.3.12 -e --source winget --accept-package-agreements --accept-source-agreements
+  if ($LASTEXITCODE -ne 0) {
+    return $false
+  }
+
+  $machinePath = [System.Environment]::GetEnvironmentVariable("Path", "Machine")
+  $userPath = [System.Environment]::GetEnvironmentVariable("Path", "User")
+  $env:Path = "$machinePath;$userPath"
+  return $true
+}
+
 function Test-PythonExe {
   param([string]$PythonExe)
 
@@ -39,29 +57,38 @@ function Test-PythonExe {
 }
 
 function New-Venv {
-  $commands = @(
-    @{ Command = "py"; Args = @("-3.12") },
-    @{ Command = "py"; Args = @("-3.11") },
-    @{ Command = "py"; Args = @("-3.10") },
-    @{ Command = "python"; Args = @() },
-    @{ Command = "python3"; Args = @() }
-  )
-  foreach ($candidate in $commands) {
-    $found = Get-Command $candidate.Command -ErrorAction SilentlyContinue
-    if (!$found) {
-      continue
+  for ($attempt = 0; $attempt -lt 2; $attempt++) {
+    $commands = @(
+      @{ Command = "py"; Args = @("-3.12") },
+      @{ Command = "py"; Args = @("-3.11") },
+      @{ Command = "py"; Args = @("-3.10") },
+      @{ Command = "python"; Args = @() },
+      @{ Command = "python3"; Args = @() }
+    )
+    foreach ($candidate in $commands) {
+      $found = Get-Command $candidate.Command -ErrorAction SilentlyContinue
+      if (!$found) {
+        continue
+      }
+      $versionText = & $candidate.Command @($candidate.Args + @("-c", "import sys; print(str(sys.version_info[0]) + '.' + str(sys.version_info[1]))")) 2>$null
+      if ($LASTEXITCODE -ne 0 -or !$versionText) {
+        continue
+      }
+      $parts = $versionText.Trim().Split(".")
+      if ([int]$parts[0] -gt $MinPythonMajor -or ([int]$parts[0] -eq $MinPythonMajor -and [int]$parts[1] -ge $MinPythonMinor)) {
+        & $candidate.Command @($candidate.Args + @("-m", "venv", (Join-Path $Root ".venv")))
+        return
+      }
     }
-    $versionText = & $candidate.Command @($candidate.Args + @("-c", "import sys; print(str(sys.version_info[0]) + '.' + str(sys.version_info[1]))")) 2>$null
-    if ($LASTEXITCODE -ne 0 -or !$versionText) {
-      continue
+
+    if ($attempt -eq 0) {
+      if (Install-PythonWithWinget) {
+        continue
+      }
     }
-    $parts = $versionText.Trim().Split(".")
-    if ([int]$parts[0] -gt $MinPythonMajor -or ([int]$parts[0] -eq $MinPythonMajor -and [int]$parts[1] -ge $MinPythonMinor)) {
-      & $candidate.Command @($candidate.Args + @("-m", "venv", (Join-Path $Root ".venv")))
-      return
-    }
+    break
   }
-  throw "Python $MinPythonMajor.$MinPythonMinor+ was not found. Run install.ps1 or install Python 3.12 from python.org."
+  throw "Python $MinPythonMajor.$MinPythonMinor+ was not found. Install Python 3.12 from python.org, then rerun install.ps1."
 }
 
 if (!(Test-Path $VenvPython)) {

@@ -18,6 +18,9 @@ function Install-PythonWithWinget {
 
   Write-Host "Python 3 was not found. Installing Python 3.12 with winget..."
   winget install --id Python.Python.3.12 -e --source winget --accept-package-agreements --accept-source-agreements
+  if ($LASTEXITCODE -ne 0) {
+    return $false
+  }
 
   $machinePath = [System.Environment]::GetEnvironmentVariable("Path", "Machine")
   $userPath = [System.Environment]::GetEnvironmentVariable("Path", "User")
