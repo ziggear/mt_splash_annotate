@@ -1,0 +1,40 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "ManuTech Height Annotator",
+  "version": "0.64.0",
+  "identifier": "com.manutech.height.annotator",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:5173",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../frontend/dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "ManuTech Height Annotator",
+        "width": 1440,
+        "height": 900,
+        "minWidth": 1180,
+        "minHeight": 760,
+        "resizable": true,
+        "fullscreen": false
+      }
+    ],
+    "security": {
+      "csp": null,
+      "capabilities": ["default"]
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis"],
+    "icon": [],
+    "resources": {
+      "../frontend/dist": "frontend/dist",
+      "../models": "models",
+      "../backend_dist": "backend_dist"
+    }
+  }
+}

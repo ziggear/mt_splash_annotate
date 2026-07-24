@@ -1,0 +1,1 @@
+{"default":{"identifier":"default","description":"Default capability for the height annotation window","local":true,"windows":["main"],"permissions":["core:default","core:event:default","allow-annotation-backend-status","allow-annotation-backend-start","allow-annotation-backend-stop","allow-annotation-select-folder"]}}

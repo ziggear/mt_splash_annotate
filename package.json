@@ -1,0 +1,15 @@
+{
+  "name": "manutech-height-annotator",
+  "private": true,
+  "version": "0.64.0",
+  "type": "module",
+  "scripts": {
+    "frontend:install": "npm --prefix frontend ci",
+    "frontend:build": "npm --prefix frontend run build",
+    "tauri:build": "tauri build",
+    "tauri:dev": "tauri dev"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.0.0"
+  }
+}

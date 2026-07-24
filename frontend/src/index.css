@@ -1,0 +1,40 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+/* rc-tree — Height Annotation folder browser (dark) */
+.height-annot-tree .rc-tree {
+  background: transparent;
+  color: #e5e7eb;
+  font-size: 13px;
+}
+.height-annot-tree .rc-tree-treenode {
+  padding: 2px 0;
+}
+.height-annot-tree .rc-tree-node-content-wrapper {
+  border-radius: 6px;
+  min-height: 28px;
+  line-height: 28px;
+}
+.height-annot-tree .rc-tree-node-content-wrapper:hover {
+  background: rgb(31 41 55 / 0.8);
+}
+.height-annot-tree .rc-tree-node-selected .rc-tree-node-content-wrapper {
+  background: rgb(30 58 138 / 0.45) !important;
+}
+.height-annot-tree .rc-tree-switcher {
+  background: transparent !important;
+  color: #9ca3af;
+}
+.height-annot-tree .rc-tree-indent-unit {
+  width: 16px;
+}

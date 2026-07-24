@@ -1,0 +1,19 @@
+[[permission]]
+identifier = "allow-annotation-backend-status"
+description = "Allows reading annotation backend status."
+commands.allow = ["annotation_backend_status"]
+
+[[permission]]
+identifier = "allow-annotation-backend-start"
+description = "Allows starting the annotation backend."
+commands.allow = ["annotation_backend_start"]
+
+[[permission]]
+identifier = "allow-annotation-backend-stop"
+description = "Allows stopping the annotation backend."
+commands.allow = ["annotation_backend_stop"]
+
+[[permission]]
+identifier = "allow-annotation-select-folder"
+description = "Allows selecting a dataset folder."
+commands.allow = ["annotation_select_folder"]

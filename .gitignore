@@ -1,0 +1,11 @@
+frontend/node_modules/
+frontend/node_modules.bad*/
+node_modules/
+backend_dist/
+!backend_dist/
+backend_dist/*
+!backend_dist/.gitkeep
+src-tauri/target/
+backend/.pytest_cache/
+__pycache__/
+*.pyc
