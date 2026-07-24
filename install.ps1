@@ -7,6 +7,8 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+$MinPythonMajor = 3
+$MinPythonMinor = 10
 
 function Install-PythonWithWinget {
   $winget = Get-Command winget -ErrorAction SilentlyContinue
@@ -23,31 +25,54 @@ function Install-PythonWithWinget {
   return $true
 }
 
+function Test-PythonCandidate {
+  param([hashtable]$Candidate)
+
+  $versionText = & $Candidate.Command @($Candidate.Args + @("-c", "import sys; print(str(sys.version_info[0]) + '.' + str(sys.version_info[1]) + '.' + str(sys.version_info[2]))")) 2>$null
+  if ($LASTEXITCODE -ne 0 -or !$versionText) {
+    return $false
+  }
+
+  $parts = $versionText.Trim().Split(".")
+  if ($parts.Count -lt 2) {
+    return $false
+  }
+  $major = [int]$parts[0]
+  $minor = [int]$parts[1]
+  if ($major -gt $MinPythonMajor -or ($major -eq $MinPythonMajor -and $minor -ge $MinPythonMinor)) {
+    Write-Host "Using Python $versionText via $($Candidate.Command) $($Candidate.Args -join ' ')"
+    return $true
+  }
+
+  Write-Host "Skipping Python $versionText via $($Candidate.Command) $($Candidate.Args -join ' '): Python $MinPythonMajor.$MinPythonMinor+ is required."
+  return $false
+}
+
 function Find-Python {
-  $candidates = @("py", "python", "python3")
-  foreach ($cmd in $candidates) {
-    $found = Get-Command $cmd -ErrorAction SilentlyContinue
-    if ($found) {
-      if ($cmd -eq "py") {
-        return @{ Command = "py"; Args = @("-3") }
-      }
-      return @{ Command = $cmd; Args = @() }
+  $candidates = @(
+    @{ Command = "py"; Args = @("-3.12") },
+    @{ Command = "py"; Args = @("-3.11") },
+    @{ Command = "py"; Args = @("-3.10") },
+    @{ Command = "python"; Args = @() },
+    @{ Command = "python3"; Args = @() }
+  )
+  foreach ($candidate in $candidates) {
+    $found = Get-Command $candidate.Command -ErrorAction SilentlyContinue
+    if ($found -and (Test-PythonCandidate -Candidate $candidate)) {
+      return $candidate
     }
   }
 
   if (Install-PythonWithWinget) {
-    foreach ($cmd in $candidates) {
-      $found = Get-Command $cmd -ErrorAction SilentlyContinue
-      if ($found) {
-        if ($cmd -eq "py") {
-          return @{ Command = "py"; Args = @("-3") }
-        }
-        return @{ Command = $cmd; Args = @() }
+    foreach ($candidate in $candidates) {
+      $found = Get-Command $candidate.Command -ErrorAction SilentlyContinue
+      if ($found -and (Test-PythonCandidate -Candidate $candidate)) {
+        return $candidate
       }
     }
   }
 
-  throw "Python 3 was not found. Install Python 3.12 from python.org, then rerun this script."
+  throw "Python $MinPythonMajor.$MinPythonMinor+ was not found. Install Python 3.12 from python.org, then rerun this script."
 }
 
 function Invoke-Python {
@@ -88,6 +113,34 @@ function Copy-ModelFiles {
   }
 }
 
+function Update-ExistingInstall {
+  param(
+    [string]$TargetDir,
+    [string]$TargetBranch
+  )
+
+  $gitDir = Join-Path $TargetDir ".git"
+  if (!(Test-Path $gitDir)) {
+    Write-Warning "Using existing non-git install: $TargetDir. To update scripts, delete this folder and rerun the one-line install."
+    return
+  }
+
+  $git = Get-Command git -ErrorAction SilentlyContinue
+  if (!$git) {
+    Write-Warning "Git is not available, so the existing install cannot be updated automatically: $TargetDir"
+    return
+  }
+
+  Push-Location $TargetDir
+  try {
+    git fetch origin $TargetBranch
+    git checkout $TargetBranch
+    git pull --ff-only origin $TargetBranch
+  } finally {
+    Pop-Location
+  }
+}
+
 $InstallDir = [System.IO.Path]::GetFullPath($InstallDir)
 $Parent = Split-Path $InstallDir -Parent
 New-Item -ItemType Directory -Force $Parent | Out-Null
@@ -117,16 +170,25 @@ if (!(Test-Path $InstallDir)) {
   }
 } else {
   Write-Host "Using existing install: $InstallDir"
+  Update-ExistingInstall -TargetDir $InstallDir -TargetBranch $Branch
 }
 
 Set-Location $InstallDir
 
 $Python = Find-Python
-if (!(Test-Path ".venv")) {
+$VenvPython = Join-Path $InstallDir ".venv\Scripts\python.exe"
+if (Test-Path $VenvPython) {
+  $venvCandidate = @{ Command = $VenvPython; Args = @() }
+  if (!(Test-PythonCandidate -Candidate $venvCandidate)) {
+    $backupName = ".venv.old." + (Get-Date -Format "yyyyMMddHHmmss")
+    Write-Host "Renaming incompatible Python venv to $backupName"
+    Rename-Item ".venv" $backupName
+  }
+}
+if (!(Test-Path $VenvPython)) {
   Invoke-Python -Python $Python -Args @("-m", "venv", ".venv")
 }
 
-$VenvPython = Join-Path $InstallDir ".venv\Scripts\python.exe"
 & $VenvPython -m pip install -U pip
 & $VenvPython -m pip install -r (Join-Path $InstallDir "backend\requirements.txt")
 

@@ -43,6 +43,9 @@ Daily start after install:
 powershell -ExecutionPolicy Bypass -File "$env:LOCALAPPDATA\ManuTechHeightAnnotator\Start.ps1"
 ```
 
+If startup fails after an older install, rerun the one-line install command. Git
+installs are updated automatically before the app starts.
+
 Or double-click:
 
 ```text
