@@ -31,7 +31,11 @@ function Install-PythonWithWinget {
 function Test-PythonCandidate {
   param([hashtable]$Candidate)
 
-  $versionText = & $Candidate.Command @($Candidate.Args + @("-c", "import sys; print(str(sys.version_info[0]) + '.' + str(sys.version_info[1]) + '.' + str(sys.version_info[2]))")) 2>$null
+  try {
+    $versionText = & $Candidate.Command @($Candidate.Args + @("-c", "import sys; print(str(sys.version_info[0]) + '.' + str(sys.version_info[1]) + '.' + str(sys.version_info[2]))")) 2>&1
+  } catch {
+    return $false
+  }
   if ($LASTEXITCODE -ne 0 -or !$versionText) {
     return $false
   }

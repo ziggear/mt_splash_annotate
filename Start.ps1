@@ -39,7 +39,11 @@ function Test-PythonExe {
   if (!(Test-Path $PythonExe) -and !(Get-Command $PythonExe -ErrorAction SilentlyContinue)) {
     return $false
   }
-  $versionText = & $PythonExe -c "import sys; print(str(sys.version_info[0]) + '.' + str(sys.version_info[1]) + '.' + str(sys.version_info[2]))" 2>$null
+  try {
+    $versionText = & $PythonExe -c "import sys; print(str(sys.version_info[0]) + '.' + str(sys.version_info[1]) + '.' + str(sys.version_info[2]))" 2>&1
+  } catch {
+    return $false
+  }
   if ($LASTEXITCODE -ne 0 -or !$versionText) {
     return $false
   }
@@ -70,7 +74,11 @@ function New-Venv {
       if (!$found) {
         continue
       }
-      $versionText = & $candidate.Command @($candidate.Args + @("-c", "import sys; print(str(sys.version_info[0]) + '.' + str(sys.version_info[1]))")) 2>$null
+      try {
+        $versionText = & $candidate.Command @($candidate.Args + @("-c", "import sys; print(str(sys.version_info[0]) + '.' + str(sys.version_info[1]))")) 2>&1
+      } catch {
+        continue
+      }
       if ($LASTEXITCODE -ne 0 -or !$versionText) {
         continue
       }
