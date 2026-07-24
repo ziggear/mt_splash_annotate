@@ -116,12 +116,23 @@ function Copy-ModelFiles {
 function Update-ExistingInstall {
   param(
     [string]$TargetDir,
-    [string]$TargetBranch
+    [string]$TargetBranch,
+    [string]$TargetRepoUrl
   )
 
   $gitDir = Join-Path $TargetDir ".git"
   if (!(Test-Path $gitDir)) {
-    Write-Warning "Using existing non-git install: $TargetDir. To update scripts, delete this folder and rerun the one-line install."
+    $zipUrl = $TargetRepoUrl
+    if ($TargetRepoUrl.EndsWith(".git")) {
+      $zipUrl = $TargetRepoUrl.Substring(0, $TargetRepoUrl.Length - 4) + "/archive/refs/heads/$TargetBranch.zip"
+    }
+    $zipPath = Join-Path $env:TEMP "manutech-height-annotator-update.zip"
+    $extractDir = Join-Path $env:TEMP ("manutech-height-annotator-update-" + [guid]::NewGuid().ToString("N"))
+    Write-Host "Updating existing non-git install from $zipUrl"
+    Invoke-WebRequest -Uri $zipUrl -OutFile $zipPath
+    Expand-Archive -Path $zipPath -DestinationPath $extractDir -Force
+    $child = Get-ChildItem $extractDir | Select-Object -First 1
+    Copy-Item -Path (Join-Path $child.FullName "*") -Destination $TargetDir -Recurse -Force
     return
   }
 
@@ -170,7 +181,7 @@ if (!(Test-Path $InstallDir)) {
   }
 } else {
   Write-Host "Using existing install: $InstallDir"
-  Update-ExistingInstall -TargetDir $InstallDir -TargetBranch $Branch
+  Update-ExistingInstall -TargetDir $InstallDir -TargetBranch $Branch -TargetRepoUrl $RepoUrl
 }
 
 Set-Location $InstallDir
