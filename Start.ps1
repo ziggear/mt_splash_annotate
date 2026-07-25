@@ -7,6 +7,8 @@ param(
 $ErrorActionPreference = "Stop"
 $MinPythonMajor = 3
 $MinPythonMinor = 10
+$MaxPythonMajor = 3
+$MaxPythonMinor = 12
 $Root = Split-Path -Parent $MyInvocation.MyCommand.Path
 $VenvPython = Join-Path $Root ".venv\Scripts\python.exe"
 $FrontendDist = Join-Path $Root "frontend\dist"
@@ -58,7 +60,6 @@ function Get-InstalledPythonExePaths {
 
 function Get-PythonCandidates {
   $candidates = @(
-    @{ Command = "py"; Args = @("-3.13") },
     @{ Command = "py"; Args = @("-3.12") },
     @{ Command = "py"; Args = @("-3.11") },
     @{ Command = "py"; Args = @("-3.10") },
@@ -69,6 +70,17 @@ function Get-PythonCandidates {
     $candidates += @{ Command = $path; Args = @() }
   }
   return $candidates
+}
+
+function Test-PythonVersion {
+  param(
+    [int]$Major,
+    [int]$Minor
+  )
+
+  $meetsMin = $Major -gt $MinPythonMajor -or ($Major -eq $MinPythonMajor -and $Minor -ge $MinPythonMinor)
+  $meetsMax = $Major -lt $MaxPythonMajor -or ($Major -eq $MaxPythonMajor -and $Minor -le $MaxPythonMinor)
+  return $meetsMin -and $meetsMax
 }
 
 function Test-PythonExe {
@@ -91,11 +103,22 @@ function Test-PythonExe {
   }
   $major = [int]$parts[0]
   $minor = [int]$parts[1]
-  if ($major -gt $MinPythonMajor -or ($major -eq $MinPythonMajor -and $minor -ge $MinPythonMinor)) {
+  if (Test-PythonVersion -Major $major -Minor $minor) {
     return $true
   }
-  Write-Host "Python venv uses $versionText, but this app requires Python $MinPythonMajor.$MinPythonMinor+."
+  Write-Host "Python venv uses $versionText, but this app requires Python $MinPythonMajor.$MinPythonMinor-$MaxPythonMajor.$MaxPythonMinor."
   return $false
+}
+
+function Install-BackendRequirements {
+  & $VenvPython -m pip install -U pip
+  if ($LASTEXITCODE -ne 0) {
+    throw "pip upgrade failed."
+  }
+  & $VenvPython -m pip install -r (Join-Path $Root "backend\requirements.txt")
+  if ($LASTEXITCODE -ne 0) {
+    throw "Backend dependency install failed."
+  }
 }
 
 function New-Venv {
@@ -111,8 +134,11 @@ function New-Venv {
         continue
       }
       $parts = $versionText.Trim().Split(".")
-      if ([int]$parts[0] -gt $MinPythonMajor -or ([int]$parts[0] -eq $MinPythonMajor -and [int]$parts[1] -ge $MinPythonMinor)) {
+      if (Test-PythonVersion -Major ([int]$parts[0]) -Minor ([int]$parts[1])) {
         & $candidate.Command @($candidate.Args + @("-m", "venv", (Join-Path $Root ".venv")))
+        if ($LASTEXITCODE -ne 0) {
+          throw "Python venv creation failed."
+        }
         return
       }
     }
@@ -124,7 +150,7 @@ function New-Venv {
     }
     break
   }
-  throw "Python $MinPythonMajor.$MinPythonMinor+ was not found. Install Python 3.12 from python.org, then rerun install.ps1."
+  throw "Python $MinPythonMajor.$MinPythonMinor-$MaxPythonMajor.$MaxPythonMinor was not found. Install Python 3.12 from python.org, then rerun install.ps1."
 }
 
 if (!(Test-Path $VenvPython)) {
@@ -132,8 +158,7 @@ if (!(Test-Path $VenvPython)) {
     throw "Python venv missing: $VenvPython"
   }
   New-Venv
-  & $VenvPython -m pip install -U pip
-  & $VenvPython -m pip install -r (Join-Path $Root "backend\requirements.txt")
+  Install-BackendRequirements
 }
 
 if (!(Test-PythonExe -PythonExe $VenvPython)) {
@@ -144,8 +169,7 @@ if (!(Test-PythonExe -PythonExe $VenvPython)) {
   Write-Host "Renaming incompatible Python venv to $backupName"
   Rename-Item (Join-Path $Root ".venv") $backupName
   New-Venv
-  & $VenvPython -m pip install -U pip
-  & $VenvPython -m pip install -r (Join-Path $Root "backend\requirements.txt")
+  Install-BackendRequirements
 }
 
 if (!(Test-Path (Join-Path $FrontendDist "index.html"))) {

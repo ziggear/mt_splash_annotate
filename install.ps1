@@ -9,6 +9,8 @@ param(
 $ErrorActionPreference = "Stop"
 $MinPythonMajor = 3
 $MinPythonMinor = 10
+$MaxPythonMajor = 3
+$MaxPythonMinor = 12
 
 function Install-PythonWithWinget {
   $winget = Get-Command winget -ErrorAction SilentlyContinue
@@ -53,7 +55,6 @@ function Get-InstalledPythonExePaths {
 
 function Get-PythonCandidates {
   $candidates = @(
-    @{ Command = "py"; Args = @("-3.13") },
     @{ Command = "py"; Args = @("-3.12") },
     @{ Command = "py"; Args = @("-3.11") },
     @{ Command = "py"; Args = @("-3.10") },
@@ -64,6 +65,17 @@ function Get-PythonCandidates {
     $candidates += @{ Command = $path; Args = @() }
   }
   return $candidates
+}
+
+function Test-PythonVersion {
+  param(
+    [int]$Major,
+    [int]$Minor
+  )
+
+  $meetsMin = $Major -gt $MinPythonMajor -or ($Major -eq $MinPythonMajor -and $Minor -ge $MinPythonMinor)
+  $meetsMax = $Major -lt $MaxPythonMajor -or ($Major -eq $MaxPythonMajor -and $Minor -le $MaxPythonMinor)
+  return $meetsMin -and $meetsMax
 }
 
 function Test-PythonCandidate {
@@ -84,12 +96,12 @@ function Test-PythonCandidate {
   }
   $major = [int]$parts[0]
   $minor = [int]$parts[1]
-  if ($major -gt $MinPythonMajor -or ($major -eq $MinPythonMajor -and $minor -ge $MinPythonMinor)) {
+  if (Test-PythonVersion -Major $major -Minor $minor) {
     Write-Host "Using Python $versionText via $($Candidate.Command) $($Candidate.Args -join ' ')"
     return $true
   }
 
-  Write-Host "Skipping Python $versionText via $($Candidate.Command) $($Candidate.Args -join ' '): Python $MinPythonMajor.$MinPythonMinor+ is required."
+  Write-Host "Skipping Python $versionText via $($Candidate.Command) $($Candidate.Args -join ' '): Python $MinPythonMajor.$MinPythonMinor-$MaxPythonMajor.$MaxPythonMinor is required."
   return $false
 }
 
@@ -110,7 +122,7 @@ function Find-Python {
     }
   }
 
-  throw "Python $MinPythonMajor.$MinPythonMinor+ was not found. Install Python 3.12 from python.org, then rerun this script."
+  throw "Python $MinPythonMajor.$MinPythonMinor-$MaxPythonMajor.$MaxPythonMinor was not found. Install Python 3.12 from python.org, then rerun this script."
 }
 
 function Invoke-Python {
@@ -119,6 +131,20 @@ function Invoke-Python {
     [string[]]$ArgList
   )
   & $Python.Command @($Python.Args + $ArgList)
+  if ($LASTEXITCODE -ne 0) {
+    throw "Python command failed: $($Python.Command) $($Python.Args + $ArgList -join ' ')"
+  }
+}
+
+function Install-BackendRequirements {
+  & $VenvPython -m pip install -U pip
+  if ($LASTEXITCODE -ne 0) {
+    throw "pip upgrade failed."
+  }
+  & $VenvPython -m pip install -r (Join-Path $InstallDir "backend\requirements.txt")
+  if ($LASTEXITCODE -ne 0) {
+    throw "Backend dependency install failed."
+  }
 }
 
 function Copy-ModelFiles {
@@ -238,8 +264,7 @@ if (!(Test-Path $VenvPython)) {
   Invoke-Python -Python $Python -ArgList @("-m", "venv", ".venv")
 }
 
-& $VenvPython -m pip install -U pip
-& $VenvPython -m pip install -r (Join-Path $InstallDir "backend\requirements.txt")
+Install-BackendRequirements
 
 if (!$SkipFrontendBuild -and !(Test-Path (Join-Path $InstallDir "frontend\dist\index.html"))) {
   $npm = Get-Command npm -ErrorAction SilentlyContinue
