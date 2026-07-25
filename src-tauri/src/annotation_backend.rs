@@ -171,17 +171,19 @@ pub fn start_backend_sync(state: BackendState, app: &AppHandle) -> Result<(), St
         .env("HEIGHT_ANNOT_FRAME_CACHE", &cache_dir)
         .env("HEIGHT_ANNOT_DATASETS_CONFIG", &datasets_config)
         .env(
-            "HEIGHT_ANNOT_XGB_060B_MODEL_DIR",
+            "HEIGHT_ANNOT_XGB_055_MODEL_DIR",
             resource_dir(app)
                 .unwrap_or_else(|| PathBuf::from("."))
                 .join("models")
                 .join("xgb_peak")
-                .join("060b_dino_quality"),
+                .join("055_base"),
         )
         .stdout(Stdio::null())
         .stderr(Stdio::null());
 
-    let child = command.spawn().map_err(|e| format!("spawn backend failed: {e}"))?;
+    let child = command
+        .spawn()
+        .map_err(|e| format!("spawn backend failed: {e}"))?;
     {
         let mut inner = state.lock().unwrap();
         inner.child = Some(child);
@@ -215,7 +217,10 @@ fn status_snapshot(state: &BackendState) -> BackendStatus {
         port: inner.port,
         url: format!("http://127.0.0.1:{}/", inner.port),
         running: port_open(inner.port),
-        log_dir: inner.log_dir.as_ref().map(|p| p.to_string_lossy().into_owned()),
+        log_dir: inner
+            .log_dir
+            .as_ref()
+            .map(|p| p.to_string_lossy().into_owned()),
         last_error: inner.last_error.clone(),
     }
 }

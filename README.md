@@ -6,7 +6,7 @@ Iteration 064 annotation-only workspace for part-time Windows height labeling.
 
 - Frontend: height annotation page only.
 - Backend: FastAPI with `/api/height-annotate/*` and `/api/health` only.
-- Prep: non-`others/` videos must use `xgb_peak_060b`; missing model or missing DINO quality sidecar fields fail the prep request.
+- Prep: non-`others/` videos use the bundled 055 XGBoost model and do not require DINO sidecar fields.
 - Output: annotation sidecar JSON is written next to the video.
 
 ## Local Development
@@ -37,6 +37,18 @@ One-line install:
 powershell -ExecutionPolicy Bypass -Command "iwr https://raw.githubusercontent.com/ziggear/mt_splash_annotate/main/install.ps1 -OutFile $env:TEMP\manutech-height-install.ps1; powershell -ExecutionPolicy Bypass -File $env:TEMP\manutech-height-install.ps1"
 ```
 
+One-line reinstall/update:
+
+```powershell
+powershell -ExecutionPolicy Bypass -Command "iwr https://raw.githubusercontent.com/ziggear/mt_splash_annotate/main/install.ps1 -OutFile $env:TEMP\manutech-height-install.ps1; powershell -ExecutionPolicy Bypass -File $env:TEMP\manutech-height-install.ps1"
+```
+
+Force one-line reinstall if the existing install is broken:
+
+```powershell
+powershell -ExecutionPolicy Bypass -Command "$p=Join-Path $env:LOCALAPPDATA 'ManuTechHeightAnnotator'; if(Test-Path $p){Rename-Item $p ($p+'.old.'+(Get-Date -Format 'yyyyMMddHHmmss'))}; iwr https://raw.githubusercontent.com/ziggear/mt_splash_annotate/main/install.ps1 -OutFile $env:TEMP\manutech-height-install.ps1; powershell -ExecutionPolicy Bypass -File $env:TEMP\manutech-height-install.ps1"
+```
+
 Daily start after install:
 
 ```powershell
@@ -64,16 +76,16 @@ The annotator machine does not need Node/npm as long as this repository includes
 `frontend/dist`. If Python 3 is missing, `install.ps1` first tries to install
 Python 3.12 with `winget`, then continues with the local venv setup.
 
-The repository includes the 060b model files by default. To override them during
-install, pass `-ModelDir E:\models\060b_dino_quality`.
+The repository includes the 055 model files by default. To override them during
+install, pass `-ModelDir E:\models\055_base`.
 
 ## Model Files
 
-The 060b model files live here, or can be overridden with
-`HEIGHT_ANNOT_XGB_060B_MODEL_DIR`:
+The 055 model files live here, or can be overridden with
+`HEIGHT_ANNOT_XGB_055_MODEL_DIR`:
 
 ```text
-src/annotation/models/xgb_peak/060b_dino_quality/
+src/annotation/models/xgb_peak/055_base/
   model.ubj
   feature_columns.json
   train_config.json
@@ -97,7 +109,7 @@ Tools, WebView2 Runtime, and NSIS-compatible Tauri prerequisites:
 
 ```powershell
 cd src\annotation
-.\scripts\package-win.ps1 -ModelDir C:\path\to\060b_dino_quality
+.\scripts\package-win.ps1 -ModelDir C:\path\to\055_base
 ```
 
 Expected output is under:

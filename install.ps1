@@ -160,7 +160,7 @@ function Copy-ModelFiles {
       }
     }
     if ($missing.Count -eq 0) {
-      Write-Host "Using bundled 060b model files: $Target"
+      Write-Host "Using bundled 055 model files: $Target"
     } else {
       Write-Warning "No -ModelDir supplied and bundled model files are missing: $($missing -join ', '). Prepare will fail until model files are copied to $Target"
     }
@@ -278,7 +278,7 @@ if (!$SkipFrontendBuild -and !(Test-Path (Join-Path $InstallDir "frontend\dist\i
   }
 }
 
-Copy-ModelFiles -Source $ModelDir -Target (Join-Path $InstallDir "models\xgb_peak\060b_dino_quality")
+Copy-ModelFiles -Source $ModelDir -Target (Join-Path $InstallDir "models\xgb_peak\055_base")
 
 Write-Host "Installed ManuTech Height Annotator at $InstallDir"
 Write-Host "Start with:"

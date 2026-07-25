@@ -1,4 +1,4 @@
-"""060b XGBoost peak inference for height annotation prep."""
+"""XGBoost peak inference for height annotation prep."""
 from __future__ import annotations
 
 import json
@@ -17,9 +17,10 @@ from tools.light_xgb_peak_055 import FEATURE_COLUMNS as BASE_055_COLUMNS, FrameI
 from .paths import annotation_path_for
 from .schema import validate_sidecar
 
-DEFAULT_MODEL_NAME = "060b_dino_quality"
+DEFAULT_MODEL_NAME = "055_base"
 DEFAULT_TOP_K = 15
-MODEL_ENV = "HEIGHT_ANNOT_XGB_060B_MODEL_DIR"
+MODEL_ENV = "HEIGHT_ANNOT_XGB_055_MODEL_DIR"
+LEGACY_MODEL_ENV = "HEIGHT_ANNOT_XGB_060B_MODEL_DIR"
 DEFAULT_MODEL_DIR = Path(__file__).resolve().parents[3] / "models" / "xgb_peak" / DEFAULT_MODEL_NAME
 
 DINO_GEOMETRY_COLUMNS: tuple[str, ...] = (
@@ -85,6 +86,10 @@ PHRASE_COLUMNS: tuple[str, ...] = (
     "fusion_mode_anchor_only",
     "fusion_mode_expanded_by_candidate",
     "fusion_mode_candidate_rescue_no_anchor",
+)
+
+DINO_FEATURE_COLUMNS: frozenset[str] = frozenset(
+    DINO_GEOMETRY_COLUMNS + DINO_QUALITY_COLUMNS + DINO_TEMPORAL_COLUMNS + PHRASE_COLUMNS
 )
 
 BANNED_FEATURE_COLUMNS: frozenset[str] = frozenset(
@@ -159,7 +164,10 @@ class FinalPeakDecision:
 
 def model_dir_from_env() -> Path:
     raw = os.environ.get(MODEL_ENV, "").strip()
-    return Path(raw) if raw else DEFAULT_MODEL_DIR
+    if raw:
+        return Path(raw)
+    legacy_raw = os.environ.get(LEGACY_MODEL_ENV, "").strip()
+    return Path(legacy_raw) if legacy_raw else DEFAULT_MODEL_DIR
 
 
 def _safe_float(value: Any, default: float = 0.0) -> float:
@@ -324,7 +332,9 @@ def add_dino_temporal_features(rows: list[dict[str, Any]], *, mode: str) -> list
 
 
 def feature_columns_for_set(feature_set: str) -> tuple[str, ...]:
-    if feature_set == "060b_dino_quality":
+    if feature_set == "055_base":
+        cols = list(BASE_055_COLUMNS)
+    elif feature_set == "060b_dino_quality":
         cols = list(BASE_055_COLUMNS) + list(DINO_GEOMETRY_COLUMNS) + list(DINO_QUALITY_COLUMNS)
     elif feature_set == "060b_dino_temporal_causal":
         cols = list(BASE_055_COLUMNS) + list(DINO_GEOMETRY_COLUMNS) + list(DINO_QUALITY_COLUMNS) + list(DINO_TEMPORAL_COLUMNS)
@@ -425,14 +435,16 @@ def _build_rows(
     *,
     frames_by_id: dict[int, Any],
     sampled_frame_ids: list[int],
-    dino_info: DinoSidecarInfo,
+    dino_info: DinoSidecarInfo | None,
     feature_set: str,
 ) -> list[dict[str, Any]]:
     frame_images = [FrameImage(frame_id=int(fid), bgr=frames_by_id[int(fid)]) for fid in sampled_frame_ids if int(fid) in frames_by_id]
-    rows = [dict(row) for row in extract_light_features(frame_images, water_y_px=dino_info.default_water_y)]
+    water_y = dino_info.default_water_y if dino_info is not None else None
+    rows = [dict(row) for row in extract_light_features(frame_images, water_y_px=water_y)]
     for row in rows:
         row["group_id"] = "height_annot"
-        row.update(dino_features_for_frame(dino_info, int(row["frame_id"])))
+        if dino_info is not None:
+            row.update(dino_features_for_frame(dino_info, int(row["frame_id"])))
     mode = temporal_mode_for_set(feature_set)
     if mode != "none":
         rows = add_dino_temporal_features(rows, mode=mode)
@@ -466,35 +478,62 @@ def predict_xgb_peak_060b(
             model_dir=run_model_dir,
             diagnostics={"missing_files": missing_model_files},
         )
-    sidecar_path = annotation_path_for(video_path)
-    if not sidecar_path.is_file():
-        return _empty_result("missing_dino", model_dir=run_model_dir, diagnostics={"sidecar_path": str(sidecar_path)})
     try:
-        dino_info = load_dino_info_for_sidecar(sidecar_path, video_width=video_width, video_height=video_height)
+        model, columns, model_diag = _load_model(run_model_dir)
     except Exception as exc:
         return _empty_result("feature_error", model_dir=run_model_dir, diagnostics={"error": f"{type(exc).__name__}: {exc}"})
 
     coverage_den = max(1, len(sampled_frame_ids))
-    dino_on_sampled = sum(1 for fid in sampled_frame_ids if int(fid) in dino_info.frames_by_id and dino_info.frames_by_id[int(fid)].box_xyxy is not None)
-    quality_on_sampled = sum(
-        1
-        for fid in sampled_frame_ids
-        if int(fid) in dino_info.frames_by_id
-        and dino_info.frames_by_id[int(fid)].overlap_bucket not in {"", "missing", "no_box"}
-    )
+    sidecar_path = annotation_path_for(video_path)
     diagnostics: dict[str, Any] = {
         "model_dir": str(run_model_dir),
         "sidecar_path": str(sidecar_path),
-        "dino_coverage": float(dino_on_sampled / coverage_den),
-        "dino_quality_coverage": float(quality_on_sampled / coverage_den),
-        "bucket_counts": dict(dino_info.bucket_counts),
+        "sidecar_status": "not_required",
     }
-    if dino_on_sampled <= 0:
+    needs_dino = any(col in DINO_FEATURE_COLUMNS for col in columns)
+    dino_info: DinoSidecarInfo | None = None
+    dino_on_sampled = 0
+    quality_on_sampled = 0
+    if sidecar_path.is_file():
+        try:
+            dino_info = load_dino_info_for_sidecar(sidecar_path, video_width=video_width, video_height=video_height)
+            dino_on_sampled = sum(
+                1
+                for fid in sampled_frame_ids
+                if int(fid) in dino_info.frames_by_id and dino_info.frames_by_id[int(fid)].box_xyxy is not None
+            )
+            quality_on_sampled = sum(
+                1
+                for fid in sampled_frame_ids
+                if int(fid) in dino_info.frames_by_id
+                and dino_info.frames_by_id[int(fid)].overlap_bucket not in {"", "missing", "no_box"}
+            )
+            diagnostics.update(
+                {
+                    "sidecar_status": "loaded",
+                    "dino_coverage": float(dino_on_sampled / coverage_den),
+                    "dino_quality_coverage": float(quality_on_sampled / coverage_den),
+                    "bucket_counts": dict(dino_info.bucket_counts),
+                }
+            )
+        except Exception as exc:
+            if needs_dino:
+                return _empty_result(
+                    "feature_error",
+                    model_dir=run_model_dir,
+                    diagnostics={**diagnostics, "error": f"{type(exc).__name__}: {exc}"},
+                )
+            diagnostics.update({"sidecar_status": "ignored_error", "sidecar_error": f"{type(exc).__name__}: {exc}"})
+    elif needs_dino:
         return _empty_result("missing_dino", model_dir=run_model_dir, diagnostics=diagnostics)
-    if any(col in set(feature_columns_for_set(feature_set)) for col in DINO_QUALITY_COLUMNS) and quality_on_sampled <= 0:
-        return _empty_result("missing_dino_quality", model_dir=run_model_dir, diagnostics=diagnostics)
+
+    if needs_dino and dino_info is not None:
+        if dino_on_sampled <= 0:
+            return _empty_result("missing_dino", model_dir=run_model_dir, diagnostics=diagnostics)
+        if any(col in set(columns) for col in DINO_QUALITY_COLUMNS) and quality_on_sampled <= 0:
+            return _empty_result("missing_dino_quality", model_dir=run_model_dir, diagnostics=diagnostics)
+
     try:
-        model, columns, model_diag = _load_model(run_model_dir)
         rows = _build_rows(
             frames_by_id=frames_by_id,
             sampled_frame_ids=sampled_frame_ids,

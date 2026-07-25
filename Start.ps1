@@ -15,7 +15,7 @@ $FrontendDist = Join-Path $Root "frontend\dist"
 $LogDir = Join-Path $env:LOCALAPPDATA "ManuTechHeightAnnotator\logs"
 $FrameCache = Join-Path $env:LOCALAPPDATA "ManuTechHeightAnnotator\frame_cache"
 $DatasetsConfig = Join-Path $env:LOCALAPPDATA "ManuTechHeightAnnotator\height_annot_datasets.json"
-$ModelDir = Join-Path $Root "models\xgb_peak\060b_dino_quality"
+$ModelDir = Join-Path $Root "models\xgb_peak\055_base"
 
 function Install-PythonWithWinget {
   $winget = Get-Command winget -ErrorAction SilentlyContinue
@@ -189,7 +189,7 @@ $env:ANNOTATION_FRONTEND_DIST = $FrontendDist
 $env:ANNOTATION_LOG_DIR = $LogDir
 $env:HEIGHT_ANNOT_FRAME_CACHE = $FrameCache
 $env:HEIGHT_ANNOT_DATASETS_CONFIG = $DatasetsConfig
-$env:HEIGHT_ANNOT_XGB_060B_MODEL_DIR = $ModelDir
+$env:HEIGHT_ANNOT_XGB_055_MODEL_DIR = $ModelDir
 
 $Url = "http://127.0.0.1:$Port/"
 if (!$NoBrowser) {

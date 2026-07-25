@@ -101,7 +101,7 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--model-dir",
-        default=str(Path(__file__).resolve().parents[1] / "models" / "xgb_peak" / "060b_dino_quality"),
+        default=str(Path(__file__).resolve().parents[1] / "models" / "xgb_peak" / "055_base"),
     )
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args()

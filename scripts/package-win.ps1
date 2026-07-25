@@ -9,7 +9,7 @@ $Root = Resolve-Path (Join-Path $PSScriptRoot "..")
 $Backend = Join-Path $Root "backend"
 $Frontend = Join-Path $Root "frontend"
 $BackendDist = Join-Path $Root "backend_dist"
-$BundledModelDir = Join-Path $Root "models\xgb_peak\060b_dino_quality"
+$BundledModelDir = Join-Path $Root "models\xgb_peak\055_base"
 
 Write-Host "Root: $Root"
 
@@ -24,7 +24,7 @@ if ($ModelDir -ne "") {
 foreach ($Required in @("model.ubj", "feature_columns.json", "train_config.json")) {
   $Path = Join-Path $BundledModelDir $Required
   if (!(Test-Path $Path)) {
-    throw "Missing model file: $Path. Pass -ModelDir <060b_dino_quality folder>."
+    throw "Missing model file: $Path. Pass -ModelDir <055_base folder>."
   }
 }
 

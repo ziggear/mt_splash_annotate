@@ -92,8 +92,8 @@ class TestAnnotationOnlyBackend(unittest.TestCase):
         self.assertIn("/api/height-annotate/select-folder", route_paths)
 
     def test_missing_xgb_model_fails_prep_job(self) -> None:
-        old_model_dir = os.environ.get("HEIGHT_ANNOT_XGB_060B_MODEL_DIR")
-        os.environ["HEIGHT_ANNOT_XGB_060B_MODEL_DIR"] = str(self.tmp / "missing_model")
+        old_model_dir = os.environ.get("HEIGHT_ANNOT_XGB_055_MODEL_DIR")
+        os.environ["HEIGHT_ANNOT_XGB_055_MODEL_DIR"] = str(self.tmp / "missing_model")
         try:
             res = self.client.post(
                 "/api/height-annotate/prep",
@@ -118,9 +118,9 @@ class TestAnnotationOnlyBackend(unittest.TestCase):
             self.assertIn("missing_model", status["error"])
         finally:
             if old_model_dir is None:
-                os.environ.pop("HEIGHT_ANNOT_XGB_060B_MODEL_DIR", None)
+                os.environ.pop("HEIGHT_ANNOT_XGB_055_MODEL_DIR", None)
             else:
-                os.environ["HEIGHT_ANNOT_XGB_060B_MODEL_DIR"] = old_model_dir
+                os.environ["HEIGHT_ANNOT_XGB_055_MODEL_DIR"] = old_model_dir
 
 
 if __name__ == "__main__":
