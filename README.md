@@ -46,9 +46,13 @@ powershell -ExecutionPolicy Bypass -File "$env:LOCALAPPDATA\ManuTechHeightAnnota
 If startup fails after an older install, rerun the one-line install command. Git
 installs are updated automatically before the app starts.
 
-If Windows prints `py.exe: No suitable Python runtime found`, install Python 3.12
-from python.org or rerun the one-line install command so the script can try
-`winget` setup.
+This app currently requires Python 3.10-3.12. Python 3.12 is recommended.
+Python 3.13 is intentionally skipped because the pinned NumPy dependency does
+not provide a compatible Windows wheel for this app setup.
+
+If Windows prints `py.exe: No suitable Python runtime found`, install Python
+3.12 from python.org or rerun the one-line install command so the script can
+try `winget` setup.
 
 Or double-click:
 
