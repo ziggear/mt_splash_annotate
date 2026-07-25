@@ -29,8 +29,46 @@ function Install-PythonWithWinget {
 
   $machinePath = [System.Environment]::GetEnvironmentVariable("Path", "Machine")
   $userPath = [System.Environment]::GetEnvironmentVariable("Path", "User")
-  $env:Path = "$machinePath;$userPath"
+  $processPath = [System.Environment]::GetEnvironmentVariable("Path", "Process")
+  $env:Path = "$processPath;$machinePath;$userPath"
   return $true
+}
+
+function Get-InstalledPythonExePaths {
+  $roots = @(
+    (Join-Path $env:LOCALAPPDATA "Programs\Python"),
+    $env:ProgramFiles,
+    ${env:ProgramFiles(x86)}
+  )
+  $paths = @()
+  foreach ($root in $roots) {
+    if (!$root -or !(Test-Path $root)) {
+      continue
+    }
+    $dirs = Get-ChildItem -Path $root -Directory -Filter "Python*" -ErrorAction SilentlyContinue
+    foreach ($dir in $dirs) {
+      $pythonExe = Join-Path $dir.FullName "python.exe"
+      if (Test-Path $pythonExe) {
+        $paths += $pythonExe
+      }
+    }
+  }
+  return $paths | Sort-Object -Descending -Unique
+}
+
+function Get-PythonCandidates {
+  $candidates = @(
+    @{ Command = "py"; Args = @("-3.13") },
+    @{ Command = "py"; Args = @("-3.12") },
+    @{ Command = "py"; Args = @("-3.11") },
+    @{ Command = "py"; Args = @("-3.10") },
+    @{ Command = "python"; Args = @() },
+    @{ Command = "python3"; Args = @() }
+  )
+  foreach ($path in Get-InstalledPythonExePaths) {
+    $candidates += @{ Command = $path; Args = @() }
+  }
+  return $candidates
 }
 
 function Test-PythonExe {
@@ -62,18 +100,8 @@ function Test-PythonExe {
 
 function New-Venv {
   for ($attempt = 0; $attempt -lt 2; $attempt++) {
-    $commands = @(
-      @{ Command = "py"; Args = @("-3.12") },
-      @{ Command = "py"; Args = @("-3.11") },
-      @{ Command = "py"; Args = @("-3.10") },
-      @{ Command = "python"; Args = @() },
-      @{ Command = "python3"; Args = @() }
-    )
+    $commands = Get-PythonCandidates
     foreach ($candidate in $commands) {
-      $found = Get-Command $candidate.Command -ErrorAction SilentlyContinue
-      if (!$found) {
-        continue
-      }
       try {
         $versionText = & $candidate.Command @($candidate.Args + @("-c", "import sys; print(str(sys.version_info[0]) + '.' + str(sys.version_info[1]))")) 2>&1
       } catch {

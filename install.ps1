@@ -24,8 +24,46 @@ function Install-PythonWithWinget {
 
   $machinePath = [System.Environment]::GetEnvironmentVariable("Path", "Machine")
   $userPath = [System.Environment]::GetEnvironmentVariable("Path", "User")
-  $env:Path = "$machinePath;$userPath"
+  $processPath = [System.Environment]::GetEnvironmentVariable("Path", "Process")
+  $env:Path = "$processPath;$machinePath;$userPath"
   return $true
+}
+
+function Get-InstalledPythonExePaths {
+  $roots = @(
+    (Join-Path $env:LOCALAPPDATA "Programs\Python"),
+    $env:ProgramFiles,
+    ${env:ProgramFiles(x86)}
+  )
+  $paths = @()
+  foreach ($root in $roots) {
+    if (!$root -or !(Test-Path $root)) {
+      continue
+    }
+    $dirs = Get-ChildItem -Path $root -Directory -Filter "Python*" -ErrorAction SilentlyContinue
+    foreach ($dir in $dirs) {
+      $pythonExe = Join-Path $dir.FullName "python.exe"
+      if (Test-Path $pythonExe) {
+        $paths += $pythonExe
+      }
+    }
+  }
+  return $paths | Sort-Object -Descending -Unique
+}
+
+function Get-PythonCandidates {
+  $candidates = @(
+    @{ Command = "py"; Args = @("-3.13") },
+    @{ Command = "py"; Args = @("-3.12") },
+    @{ Command = "py"; Args = @("-3.11") },
+    @{ Command = "py"; Args = @("-3.10") },
+    @{ Command = "python"; Args = @() },
+    @{ Command = "python3"; Args = @() }
+  )
+  foreach ($path in Get-InstalledPythonExePaths) {
+    $candidates += @{ Command = $path; Args = @() }
+  }
+  return $candidates
 }
 
 function Test-PythonCandidate {
@@ -56,24 +94,17 @@ function Test-PythonCandidate {
 }
 
 function Find-Python {
-  $candidates = @(
-    @{ Command = "py"; Args = @("-3.12") },
-    @{ Command = "py"; Args = @("-3.11") },
-    @{ Command = "py"; Args = @("-3.10") },
-    @{ Command = "python"; Args = @() },
-    @{ Command = "python3"; Args = @() }
-  )
+  $candidates = Get-PythonCandidates
   foreach ($candidate in $candidates) {
-    $found = Get-Command $candidate.Command -ErrorAction SilentlyContinue
-    if ($found -and (Test-PythonCandidate -Candidate $candidate)) {
+    if (Test-PythonCandidate -Candidate $candidate) {
       return $candidate
     }
   }
 
   if (Install-PythonWithWinget) {
+    $candidates = Get-PythonCandidates
     foreach ($candidate in $candidates) {
-      $found = Get-Command $candidate.Command -ErrorAction SilentlyContinue
-      if ($found -and (Test-PythonCandidate -Candidate $candidate)) {
+      if (Test-PythonCandidate -Candidate $candidate) {
         return $candidate
       }
     }
@@ -85,9 +116,9 @@ function Find-Python {
 function Invoke-Python {
   param(
     [hashtable]$Python,
-    [string[]]$Args
+    [string[]]$ArgList
   )
-  & $Python.Command @($Python.Args + $Args)
+  & $Python.Command @($Python.Args + $ArgList)
 }
 
 function Copy-ModelFiles {
@@ -204,7 +235,7 @@ if (Test-Path $VenvPython) {
   }
 }
 if (!(Test-Path $VenvPython)) {
-  Invoke-Python -Python $Python -Args @("-m", "venv", ".venv")
+  Invoke-Python -Python $Python -ArgList @("-m", "venv", ".venv")
 }
 
 & $VenvPython -m pip install -U pip
