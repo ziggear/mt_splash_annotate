@@ -34,19 +34,19 @@ then starts the browser app at `http://127.0.0.1:37864/`.
 One-line install:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -Command "iwr https://raw.githubusercontent.com/ziggear/mt_splash_annotate/main/install.ps1 -OutFile $env:TEMP\manutech-height-install.ps1; powershell -ExecutionPolicy Bypass -File $env:TEMP\manutech-height-install.ps1"
+iwr https://raw.githubusercontent.com/ziggear/mt_splash_annotate/main/install.ps1 -OutFile $env:TEMP\manutech-height-install.ps1; powershell -ExecutionPolicy Bypass -File $env:TEMP\manutech-height-install.ps1
 ```
 
 One-line reinstall/update:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -Command "iwr https://raw.githubusercontent.com/ziggear/mt_splash_annotate/main/install.ps1 -OutFile $env:TEMP\manutech-height-install.ps1; powershell -ExecutionPolicy Bypass -File $env:TEMP\manutech-height-install.ps1"
+iwr https://raw.githubusercontent.com/ziggear/mt_splash_annotate/main/reinstall.ps1 -UseBasicParsing | iex
 ```
 
 Force one-line reinstall if the existing install is broken:
 
 ```powershell
-$p=Join-Path $env:LOCALAPPDATA "ManuTechHeightAnnotator"; if(Test-Path $p){Rename-Item $p ($p+".old."+(Get-Date -Format "yyyyMMddHHmmss"))}; iwr "https://raw.githubusercontent.com/ziggear/mt_splash_annotate/main/install.ps1" -OutFile "$env:TEMP\manutech-height-install.ps1"; powershell -ExecutionPolicy Bypass -File "$env:TEMP\manutech-height-install.ps1"
+iwr https://raw.githubusercontent.com/ziggear/mt_splash_annotate/main/reinstall.ps1 -UseBasicParsing | iex
 ```
 
 Daily start after install:

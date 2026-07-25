@@ -424,11 +424,21 @@ def _load_model(model_dir: Path) -> tuple[Any, tuple[str, ...], dict[str, Any]]:
         raise FileNotFoundError(f"no model.ubj or model.json in {model_dir}")
     import xgboost as xgb
 
-    model = xgb.XGBRegressor()
+    model = xgb.Booster()
     model.load_model(str(model_path))
     train_cfg_path = model_dir / "train_config.json"
     train_cfg = json.loads(train_cfg_path.read_text(encoding="utf-8")) if train_cfg_path.is_file() else {}
     return model, columns, {"model_path": str(model_path), "train_config": train_cfg}
+
+
+def _predict_model_scores(model: Any, x: np.ndarray) -> list[float]:
+    import xgboost as xgb
+
+    if isinstance(model, xgb.Booster):
+        pred = model.predict(xgb.DMatrix(x))
+    else:
+        pred = model.predict(x)
+    return [float(v) for v in pred]
 
 
 def _build_rows(
@@ -546,7 +556,7 @@ def predict_xgb_peak_060b(
         if missing:
             return _empty_result("feature_error", model_dir=run_model_dir, diagnostics={**diagnostics, "missing_columns": missing})
         x = np.array([[float(row.get(col, 0.0)) for col in columns] for row in rows], dtype=np.float32)
-        scores = [float(v) for v in model.predict(x)]
+        scores = _predict_model_scores(model, x)
     except Exception as exc:
         return _empty_result("feature_error", model_dir=run_model_dir, diagnostics={**diagnostics, "error": f"{type(exc).__name__}: {exc}"})
 
