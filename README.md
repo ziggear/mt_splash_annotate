@@ -46,7 +46,7 @@ powershell -ExecutionPolicy Bypass -Command "iwr https://raw.githubusercontent.c
 Force one-line reinstall if the existing install is broken:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -Command "$p=Join-Path $env:LOCALAPPDATA 'ManuTechHeightAnnotator'; if(Test-Path $p){Rename-Item $p ($p+'.old.'+(Get-Date -Format 'yyyyMMddHHmmss'))}; iwr https://raw.githubusercontent.com/ziggear/mt_splash_annotate/main/install.ps1 -OutFile $env:TEMP\manutech-height-install.ps1; powershell -ExecutionPolicy Bypass -File $env:TEMP\manutech-height-install.ps1"
+$p=Join-Path $env:LOCALAPPDATA "ManuTechHeightAnnotator"; if(Test-Path $p){Rename-Item $p ($p+".old."+(Get-Date -Format "yyyyMMddHHmmss"))}; iwr "https://raw.githubusercontent.com/ziggear/mt_splash_annotate/main/install.ps1" -OutFile "$env:TEMP\manutech-height-install.ps1"; powershell -ExecutionPolicy Bypass -File "$env:TEMP\manutech-height-install.ps1"
 ```
 
 Daily start after install:
