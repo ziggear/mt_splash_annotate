@@ -18,6 +18,7 @@ REQUIRED_MODULES = (
     "app.height_annot.prep",
     "app.height_annot.roi_export",
     "app.height_annot.schema",
+    "app.height_annot.xgb_peak",
     "app.height_annot.xgb_peak_060b",
     "tools.light_xgb_peak_055",
 )

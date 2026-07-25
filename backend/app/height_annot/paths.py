@@ -6,6 +6,8 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
+from .video_validity import generate_video_validity
+
 LEGACY_EXCLUDED_DIR_NAMES: frozenset[str] = frozenset(f"20260314-{i:03d}" for i in range(1, 21))
 EXTRACT_ONLY_FOLDER = "others"
 VIDEO_VALIDITY_FILENAME = "video_validity.json"
@@ -213,6 +215,7 @@ def _probe_duration_s(video_path: Path) -> float:
 def browse_folder(rel: str = "", dataset_id: str | None = None) -> BrowseResult:
     folder = resolve_folder_rel(rel, dataset_id=dataset_id)
     rel_norm = _normalize_rel(rel)
+    generate_video_validity(folder)
     subdirs = list_subdirs(folder)
     videos: list[BrowseVideoEntry] = []
     for mp4 in list_browseable_mp4_videos(folder):

@@ -7,6 +7,7 @@ interface Tier12CurvePoint {
   mog2_ref_change_energy?: number
   mog2_splash_height_px?: number
   v_ref_diff_energy?: number
+  xgb_score?: number
 }
 
 interface Props {
@@ -19,6 +20,7 @@ interface Props {
   combinedRefDiffWeight?: number | null
   peakSelectionMode?: string | null
   vRefDiffPeakFrameId?: number | null
+  xgbPeakFrameId?: number | null
   showVRefDiffCurve?: boolean
   selectedFrameId: number | null
   onSelectFrame: (frameId: number) => void
@@ -34,12 +36,15 @@ export default function Tier1Curve({
   combinedRefDiffWeight,
   peakSelectionMode,
   vRefDiffPeakFrameId,
+  xgbPeakFrameId,
   showVRefDiffCurve,
   selectedFrameId,
   onSelectFrame,
 }: Props) {
   const hasVRefDiffEnergy = curve.some((p) => (p.v_ref_diff_energy ?? 0) > 0)
   const drawVRefDiff = showVRefDiffCurve ?? hasVRefDiffEnergy
+  const isXgbMode = peakSelectionMode === 'xgb_peak' || peakSelectionMode === 'xgb_peak_060b'
+  const drawXgb = isXgbMode && curve.some((p) => p.xgb_score != null)
 
   const {
     pathMog2Energy,
@@ -48,12 +53,14 @@ export default function Tier1Curve({
     pathRefHeight,
     pathCombinedRef,
     pathVRefDiff,
+    pathXgb,
     maxMog2Energy,
     maxMog2Height,
     maxRefEnergy,
     maxRefHeight,
     maxCombinedRef,
     maxVRefDiff,
+    maxXgbScore,
     combinedPeakFrameId,
     width,
     height,
@@ -70,12 +77,14 @@ export default function Tier1Curve({
         pathRefHeight: '',
         pathCombinedRef: '',
         pathVRefDiff: '',
+        pathXgb: '',
         maxMog2Energy: 1,
         maxMog2Height: 1,
         maxRefEnergy: 1,
         maxRefHeight: 1,
         maxCombinedRef: 1,
         maxVRefDiff: 1,
+        maxXgbScore: 1,
         combinedPeakFrameId: null as number | null,
         width: w,
         height: h,
@@ -87,6 +96,8 @@ export default function Tier1Curve({
     const maxRE = Math.max(1, ...curve.map((p) => p.diff_energy))
     const maxRH = Math.max(1, ...curve.map((p) => p.splash_height_px))
     const maxVR = Math.max(1, ...curve.map((p) => p.v_ref_diff_energy ?? 0))
+    const maxXgb = Math.max(1, ...curve.map((p) => p.xgb_score ?? 0))
+    const maxXgbRaw = Math.max(0, ...curve.map((p) => p.xgb_score ?? 0))
     const refWeight = combinedRefDiffWeight ?? 0.5
     const combinedScores = curve.map(
       (p) =>
@@ -122,6 +133,9 @@ export default function Tier1Curve({
     const pathVRefDiff = curve
       .map((p, i) => `${i === 0 ? 'M' : 'L'} ${toX(i).toFixed(1)} ${toY(p.v_ref_diff_energy ?? 0, maxVR).toFixed(1)}`)
       .join(' ')
+    const pathXgb = curve
+      .map((p, i) => `${i === 0 ? 'M' : 'L'} ${toX(i).toFixed(1)} ${toY(p.xgb_score ?? 0, maxXgb).toFixed(1)}`)
+      .join(' ')
 
     return {
       pathMog2Energy,
@@ -130,12 +144,14 @@ export default function Tier1Curve({
       pathRefHeight,
       pathCombinedRef,
       pathVRefDiff,
+      pathXgb,
       maxMog2Energy: maxME,
       maxMog2Height: maxMH,
       maxRefEnergy: maxRE,
       maxRefHeight: maxRH,
       maxCombinedRef: maxCombined,
       maxVRefDiff: maxVR,
+      maxXgbScore: maxXgbRaw,
       combinedPeakFrameId: curve[peakIdx]?.frame_id ?? null,
       width: w,
       height: h,
@@ -163,13 +179,14 @@ export default function Tier1Curve({
 
   const primaryPeakId = useMemo(() => {
     const mode = peakSelectionMode ?? 'mog2_plus_ref_diff'
-    if (mode === 'xgb_peak_060b') return vRefDiffPeakFrameId ?? null
+    if (mode === 'xgb_peak' || mode === 'xgb_peak_060b') return xgbPeakFrameId ?? vRefDiffPeakFrameId ?? null
     if (mode === 'v2_splash_peak') return vRefDiffPeakFrameId ?? null
     if (mode === 'mog2_diff') return mog2ChangePeakFrameId
     if (mode === 'ref_diff') return diffPeakFrameId
     return combinedChangePeakFrameId ?? combinedPeakFrameId
   }, [
     peakSelectionMode,
+    xgbPeakFrameId,
     vRefDiffPeakFrameId,
     mog2ChangePeakFrameId,
     diffPeakFrameId,
@@ -196,33 +213,39 @@ export default function Tier1Curve({
         className="w-full h-auto cursor-crosshair"
         onClick={handleClick}
         role="img"
-        aria-label="Tier1 MOG2 and ref-diff curves"
+        aria-label={drawXgb ? 'XGBoost score curve' : 'Tier1 MOG2 and ref-diff curves'}
       >
         <rect x={0} y={0} width={width} height={height} fill="#111827" rx={4} />
-        <path d={pathRefEnergy} fill="none" stroke="#38bdf8" strokeWidth={1.25} strokeDasharray="3 3" opacity={0.85} />
-        <path d={pathRefHeight} fill="none" stroke="#fbbf24" strokeWidth={1.25} strokeDasharray="5 4" opacity={0.85} />
-        <path d={pathCombinedRef} fill="none" stroke="#a855f7" strokeWidth={2} opacity={0.95} />
-        <path d={pathMog2Energy} fill="none" stroke="#22c55e" strokeWidth={1.75} />
-        <path d={pathMog2Height} fill="none" stroke="#86efac" strokeWidth={1.5} strokeDasharray="4 3" />
-        {drawVRefDiff && pathVRefDiff && (
+        {drawXgb ? (
+          <path d={pathXgb} fill="none" stroke="#38bdf8" strokeWidth={2} opacity={0.95} />
+        ) : (
+          <>
+            <path d={pathRefEnergy} fill="none" stroke="#38bdf8" strokeWidth={1.25} strokeDasharray="3 3" opacity={0.85} />
+            <path d={pathRefHeight} fill="none" stroke="#fbbf24" strokeWidth={1.25} strokeDasharray="5 4" opacity={0.85} />
+            <path d={pathCombinedRef} fill="none" stroke="#a855f7" strokeWidth={2} opacity={0.95} />
+            <path d={pathMog2Energy} fill="none" stroke="#22c55e" strokeWidth={1.75} />
+            <path d={pathMog2Height} fill="none" stroke="#86efac" strokeWidth={1.5} strokeDasharray="4 3" />
+          </>
+        )}
+        {!drawXgb && drawVRefDiff && pathVRefDiff && (
           <path d={pathVRefDiff} fill="none" stroke="#06b6d4" strokeWidth={1.75} opacity={0.95} />
         )}
-        {mog2ChangeX != null && (
+        {!drawXgb && mog2ChangeX != null && (
           <line x1={mog2ChangeX} y1={padding} x2={mog2ChangeX} y2={height - padding} stroke="#22c55e" strokeWidth={1.5} />
         )}
-        {mog2HeightX != null && mog2HeightX !== mog2ChangeX && (
+        {!drawXgb && mog2HeightX != null && mog2HeightX !== mog2ChangeX && (
           <line x1={mog2HeightX} y1={padding} x2={mog2HeightX} y2={height - padding} stroke="#86efac" strokeWidth={1} strokeDasharray="6 4" />
         )}
-        {diffPeakX != null && (
+        {!drawXgb && diffPeakX != null && (
           <line x1={diffPeakX} y1={padding} x2={diffPeakX} y2={height - padding} stroke="#ef4444" strokeWidth={1.25} strokeDasharray="3 3" />
         )}
-        {heightPeakX != null && heightPeakX !== diffPeakX && (
+        {!drawXgb && heightPeakX != null && heightPeakX !== diffPeakX && (
           <line x1={heightPeakX} y1={padding} x2={heightPeakX} y2={height - padding} stroke="#f59e0b" strokeWidth={1.25} strokeDasharray="6 4" />
         )}
-        {combinedPeakX != null && combinedPeakX !== primaryPeakX && (
+        {!drawXgb && combinedPeakX != null && combinedPeakX !== primaryPeakX && (
           <line x1={combinedPeakX} y1={padding} x2={combinedPeakX} y2={height - padding} stroke="#a855f7" strokeWidth={1.25} strokeDasharray="4 4" opacity={0.75} />
         )}
-        {vRefDiffPeakX != null && vRefDiffPeakX !== primaryPeakX && (
+        {!drawXgb && vRefDiffPeakX != null && vRefDiffPeakX !== primaryPeakX && (
           <line x1={vRefDiffPeakX} y1={padding} x2={vRefDiffPeakX} y2={height - padding} stroke="#06b6d4" strokeWidth={1.25} strokeDasharray="4 3" opacity={0.8} />
         )}
         {primaryPeakX != null && (
@@ -237,6 +260,13 @@ export default function Tier1Curve({
         })()}
       </svg>
       <div className="flex flex-wrap gap-3 text-[11px] text-gray-400">
+        {drawXgb ? (
+          <>
+            <span className="flex items-center gap-1"><span className="inline-block w-3 h-0.5 bg-sky-400" /> XGB score (max {maxXgbScore.toFixed(3)})</span>
+            {primaryPeakId != null && <span className="text-sky-400">XGB peak F{primaryPeakId}</span>}
+          </>
+        ) : (
+          <>
         <span className="flex items-center gap-1"><span className="inline-block w-3 h-0.5 bg-green-500" /> MOG2 change (max {maxMog2Energy})</span>
         <span className="flex items-center gap-1"><span className="inline-block w-3 h-0.5 bg-green-300" /> MOG2 height (max {maxMog2Height})</span>
         <span className="flex items-center gap-1"><span className="inline-block w-3 h-0.5 bg-sky-400" /> ref-diff energy (max {maxRefEnergy})</span>
@@ -261,6 +291,8 @@ export default function Tier1Curve({
         )}
         {vRefDiffPeakFrameId != null && (
           <span className="text-cyan-400">V-ref diff F{vRefDiffPeakFrameId}</span>
+        )}
+          </>
         )}
       </div>
     </div>

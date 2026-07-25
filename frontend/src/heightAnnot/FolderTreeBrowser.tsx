@@ -232,9 +232,10 @@ const FolderTreeBrowser = forwardRef<FolderTreeBrowserHandle, Props>(function Fo
     }
     if (node.nodeKind === 'folder') {
       onNavigate(node.folderRel)
-      if (!expandedKeys.includes(node.key as string)) {
-        setExpandedKeys((prev) => [...prev, node.key as string])
-      }
+      const key = node.key as string
+      setExpandedKeys((prev) =>
+        prev.includes(key) ? prev.filter((x) => x !== key) : [...prev, key],
+      )
     }
   }
 

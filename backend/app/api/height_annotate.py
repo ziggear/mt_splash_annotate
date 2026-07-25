@@ -40,6 +40,7 @@ from ..height_annot.frame_cache import (
     read_prep_cache,
 )
 from ..height_annot.prep import (
+    LEGACY_PEAK_SELECTION_MODE_XGB_060B,
     PEAK_SELECTION_MODE_XGB,
     frame_jpeg_path,
     frame_jpeg_path_for_video_rel,
@@ -329,17 +330,19 @@ def _run_prep_job(job_id: str, body: PrepRequest) -> None:
 def start_prep(body: PrepRequest) -> PrepCreateResponse:
     dsid = _request_dataset_id(body.dataset_id)
     rel_norm = body.video_rel_path.replace("\\", "/")
-    allowed_mode = "extract_only" if rel_norm.split("/", 1)[0] == "others" else PEAK_SELECTION_MODE_XGB
-    if body.peak_selection_mode != allowed_mode:
+    extract_only = rel_norm.split("/", 1)[0] == "others"
+    allowed_modes = {"extract_only"} if extract_only else {PEAK_SELECTION_MODE_XGB, LEGACY_PEAK_SELECTION_MODE_XGB_060B}
+    if body.peak_selection_mode not in allowed_modes:
         raise HTTPException(
             status_code=422,
-            detail=f"annotation app only supports peak_selection_mode={allowed_mode}",
+            detail=f"annotation app only supports peak_selection_mode={PEAK_SELECTION_MODE_XGB if not extract_only else 'extract_only'}",
         )
     try:
         resolve_video_path(body.video_rel_path, dataset_id=dsid)
     except (PathSecurityError, LegacyFolderExcluded, VideoNotValid, DatasetError) as exc:
         raise _http_from_path_error(exc) from exc
-    body = body.model_copy(update={"dataset_id": dsid})
+    normalized_mode = "extract_only" if extract_only else PEAK_SELECTION_MODE_XGB
+    body = body.model_copy(update={"dataset_id": dsid, "peak_selection_mode": normalized_mode})
 
     job_id = uuid.uuid4().hex
     st = PrepJobState(job_id)

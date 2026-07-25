@@ -1,4 +1,4 @@
-"""Annotation-only prep: decode frames and require 060b XGBoost peak selection."""
+"""Annotation-only prep: decode frames and require XGBoost peak selection."""
 from __future__ import annotations
 
 import json
@@ -16,13 +16,14 @@ import cv2
 
 from . import frame_cache
 from .paths import is_extract_only_video_rel, probe_video_meta, resolve_video_path
-from .xgb_peak_060b import DEFAULT_MODEL_NAME, predict_xgb_peak_060b
+from .xgb_peak import DEFAULT_MODEL_NAME, predict_xgb_peak
 
 logger = logging.getLogger(__name__)
 
 _PREP_CACHE_OVERRIDE: Path | None = None
 _job_video_rel: dict[str, tuple[str | None, str]] = {}
-PEAK_SELECTION_MODE_XGB = "xgb_peak_060b"
+PEAK_SELECTION_MODE_XGB = "xgb_peak"
+LEGACY_PEAK_SELECTION_MODE_XGB_060B = "xgb_peak_060b"
 
 
 def prep_cache_root() -> Path:
@@ -128,7 +129,9 @@ def run_prep(
         raise FileNotFoundError(f"video not found: {video_rel_path}")
 
     extract_only = is_extract_only_video_rel(rel_norm)
-    if not extract_only and str(peak_selection_mode) != PEAK_SELECTION_MODE_XGB:
+    requested_peak_mode = str(peak_selection_mode)
+    allowed_xgb_modes = {PEAK_SELECTION_MODE_XGB, LEGACY_PEAK_SELECTION_MODE_XGB_060B}
+    if not extract_only and requested_peak_mode not in allowed_xgb_modes:
         raise ValueError(f"annotation app only supports {PEAK_SELECTION_MODE_XGB}")
 
     meta = probe_video_meta(video_path)
@@ -164,7 +167,7 @@ def run_prep(
             "final_peak_reason": "extract_only",
         }
     else:
-        xgb = predict_xgb_peak_060b(
+        xgb = predict_xgb_peak(
             video_path=video_path,
             frames_by_id=frames_by_id,
             sampled_frame_ids=sampled_ids,
@@ -183,6 +186,7 @@ def run_prep(
             "xgb_peak_score": xgb.peak_score,
             "xgb_topk_frame_ids": xgb.topk_frame_ids,
             "xgb_topk_scores": xgb.topk_scores,
+            "xgb_frame_scores": xgb.frame_scores,
             "xgb_model_name": xgb.model_name,
             "xgb_feature_set": xgb.feature_set,
             "xgb_feature_status": xgb.feature_status,
@@ -192,7 +196,17 @@ def run_prep(
             "final_peak_reason": "xgb_required",
         }
 
-    curve: list[dict[str, Any]] = []
+    ts_by_frame_id = {int(fid): int(ts_ms) for fid, _bgr, ts_ms in decoded}
+    curve: list[dict[str, Any]] = [
+        {
+            "frame_id": int(row["frame_id"]),
+            "timestamp_ms": ts_by_frame_id.get(int(row["frame_id"]), 0),
+            "diff_energy": 0,
+            "splash_height_px": 0,
+            "xgb_score": float(row["xgb_score"]),
+        }
+        for row in xgb_fields.get("xgb_frame_scores", [])
+    ]
     cache_key = frame_cache.cache_key_for_video(rel_norm, dataset_id=dataset_id)
     payload = {
         "status": "done",

@@ -148,6 +148,7 @@ export interface Tier1CurvePoint {
   splash_height_px: number
   mog2_splash_height_px?: number
   v_ref_diff_energy?: number
+  xgb_score?: number
 }
 
 export interface SidecarFrame {

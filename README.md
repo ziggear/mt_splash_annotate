@@ -26,10 +26,10 @@ The frontend proxies `/api` to `http://localhost:8000`.
 
 ## GitHub One-Line Install
 
-This app can be distributed without a Tauri installer. The Windows flow is a
-PowerShell bootstrap that clones or downloads the repository, creates a local
-Python venv, installs backend dependencies, reuses the checked-in frontend build,
-then starts the browser app at `http://127.0.0.1:37864/`.
+The delivery artifact is the PowerShell install and reinstall flow. The scripts
+clone or update this repository, create a local Python venv, install backend
+dependencies, reuse the checked-in frontend build, then start the browser app at
+`http://127.0.0.1:37864/`.
 
 One-line install:
 
@@ -98,27 +98,8 @@ cd src/annotation
 python scripts/check_annotation_backend.py
 ```
 
-## Windows Packaging
+## Delivery
 
-The Tauri shell starts the bundled local backend, navigates the window to the
-local FastAPI frontend, supports folder selection, exposes backend status, and
-stops the backend when the app exits.
-
-Run from Windows PowerShell on a machine with Node.js, Rust, Visual Studio Build
-Tools, WebView2 Runtime, and NSIS-compatible Tauri prerequisites:
-
-```powershell
-cd src\annotation
-.\scripts\package-win.ps1 -ModelDir C:\path\to\055_base
-```
-
-Expected output is under:
-
-```text
-src/annotation/src-tauri/target/release/bundle/
-```
-
-The 224 SSH environment is WSL2. It can validate the Python backend with the
-existing `stage1pc/backend/.venv`, but it does not currently expose Windows-side
-Node/Rust tools through the SSH session, so it cannot by itself produce the
-Windows installer.
+Publish changes by committing and pushing this repository with `frontend/dist`
+included. Operators install or update through the one-line PowerShell commands
+above; no Tauri build or Windows installer artifact is required.

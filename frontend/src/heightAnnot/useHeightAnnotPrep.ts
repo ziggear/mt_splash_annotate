@@ -62,6 +62,17 @@ function cacheToResult(payload: PrepCacheResponse): PrepStatusResponse {
     combined_change_peak_frame_id: payload.combined_change_peak_frame_id,
     tier1_v2_tail_exclude_frac: payload.tier1_v2_tail_exclude_frac,
     tier1_v2_warmup_frames: payload.tier1_v2_warmup_frames,
+    xgb_peak_frame_id: payload.xgb_peak_frame_id,
+    xgb_peak_score: payload.xgb_peak_score,
+    xgb_topk_frame_ids: payload.xgb_topk_frame_ids,
+    xgb_topk_scores: payload.xgb_topk_scores,
+    xgb_model_name: payload.xgb_model_name,
+    xgb_feature_set: payload.xgb_feature_set,
+    xgb_feature_status: payload.xgb_feature_status,
+    xgb_available: payload.xgb_available,
+    final_peak_frame_id: payload.final_peak_frame_id,
+    final_peak_source: payload.final_peak_source,
+    final_peak_reason: payload.final_peak_reason,
   }
 }
 

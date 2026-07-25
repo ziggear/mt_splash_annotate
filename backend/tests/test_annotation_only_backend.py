@@ -6,12 +6,14 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 import cv2
 import numpy as np
 from fastapi.testclient import TestClient
 
 from app.height_annot import frame_cache, paths, prep
+from app.height_annot.xgb_peak import XgbPeakResult
 from app.main import app
 
 
@@ -85,11 +87,29 @@ class TestAnnotationOnlyBackend(unittest.TestCase):
             },
         )
         self.assertEqual(res.status_code, 422)
-        self.assertIn("xgb_peak_060b", res.text)
+        self.assertIn("xgb_peak", res.text)
 
     def test_select_folder_route_exists(self) -> None:
         route_paths = {getattr(route, "path", "") for route in app.routes}
         self.assertIn("/api/height-annotate/select-folder", route_paths)
+
+    def test_browse_generates_missing_video_validity_json(self) -> None:
+        folder = self.tmp / "new_folder"
+        _write_test_video(folder / "generated.mp4", frames=48, fps=12.0)
+        res = self.client.get("/api/height-annotate/browse", params={"rel": "new_folder"})
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual([v["name"] for v in res.json()["videos"]], ["generated.mp4"])
+        manifest = folder / paths.VIDEO_VALIDITY_FILENAME
+        self.assertTrue(manifest.is_file())
+        payload = json.loads(manifest.read_text(encoding="utf-8"))
+        self.assertEqual(payload["summary"]["valid"], 1)
+
+    def test_browse_does_not_generate_validity_json_without_top_level_mp4(self) -> None:
+        folder = self.tmp / "empty_parent"
+        (folder / "child").mkdir(parents=True)
+        res = self.client.get("/api/height-annotate/browse", params={"rel": "empty_parent"})
+        self.assertEqual(res.status_code, 200)
+        self.assertFalse((folder / paths.VIDEO_VALIDITY_FILENAME).exists())
 
     def test_missing_xgb_model_fails_prep_job(self) -> None:
         old_model_dir = os.environ.get("HEIGHT_ANNOT_XGB_055_MODEL_DIR")
@@ -100,7 +120,7 @@ class TestAnnotationOnlyBackend(unittest.TestCase):
                 json={
                     "video_rel_path": "sample.mp4",
                     "sample_fps": 6.0,
-                    "peak_selection_mode": "xgb_peak_060b",
+                    "peak_selection_mode": "xgb_peak",
                 },
             )
             self.assertEqual(res.status_code, 200)
@@ -116,6 +136,52 @@ class TestAnnotationOnlyBackend(unittest.TestCase):
             self.assertEqual(status["status"], "failed")
             self.assertIn("XGBoost peak selection unavailable", status["error"])
             self.assertIn("missing_model", status["error"])
+        finally:
+            if old_model_dir is None:
+                os.environ.pop("HEIGHT_ANNOT_XGB_055_MODEL_DIR", None)
+            else:
+                os.environ["HEIGHT_ANNOT_XGB_055_MODEL_DIR"] = old_model_dir
+
+    def test_xgb_prep_curve_contains_sampled_frame_scores(self) -> None:
+        def fake_predict(**kwargs):
+            sampled = [int(fid) for fid in kwargs["sampled_frame_ids"]]
+            return XgbPeakResult(
+                available=True,
+                feature_status="ok",
+                model_name="055_base",
+                feature_set="055_base",
+                peak_frame_id=sampled[-1],
+                peak_score=0.9,
+                topk_frame_ids=[sampled[-1]],
+                topk_scores=[0.9],
+                frame_scores=[
+                    {"frame_id": fid, "xgb_score": float(i) / max(1, len(sampled) - 1)}
+                    for i, fid in enumerate(sampled)
+                ],
+                diagnostics={},
+            )
+
+        with patch("app.height_annot.prep.predict_xgb_peak", side_effect=fake_predict):
+            result = prep.run_prep("sample.mp4", sample_fps=6.0, peak_selection_mode="xgb_peak")
+
+        self.assertEqual(len(result.curve), len(result.sampled_frame_ids))
+        self.assertEqual(result.curve[0]["frame_id"], result.sampled_frame_ids[0])
+        self.assertIn("xgb_score", result.curve[0])
+        self.assertEqual(result.peak_selection_mode, "xgb_peak")
+
+    def test_legacy_xgb_peak_mode_is_accepted(self) -> None:
+        old_model_dir = os.environ.get("HEIGHT_ANNOT_XGB_055_MODEL_DIR")
+        os.environ["HEIGHT_ANNOT_XGB_055_MODEL_DIR"] = str(self.tmp / "missing_model")
+        try:
+            res = self.client.post(
+                "/api/height-annotate/prep",
+                json={
+                    "video_rel_path": "sample.mp4",
+                    "sample_fps": 6.0,
+                    "peak_selection_mode": "xgb_peak_060b",
+                },
+            )
+            self.assertEqual(res.status_code, 200)
         finally:
             if old_model_dir is None:
                 os.environ.pop("HEIGHT_ANNOT_XGB_055_MODEL_DIR", None)

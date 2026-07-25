@@ -40,12 +40,14 @@ function isFrameAnnotated(ln: { waterY?: number | null; splashTopY?: number | nu
 }
 
 type SplashRoi = [number, number, number, number]
+type AnnotationStatus = 'draft' | 'confirmed' | null
 type FrameAnnotationState = {
   waterY: number | null
   splashTopY: number | null
   splashHeightPx: number | null
+  lineStatus: AnnotationStatus
   splashRoi: SplashRoi | null
-  splashRoiStatus: 'draft' | 'confirmed' | null
+  splashRoiStatus: AnnotationStatus
   hasSplash: boolean | null
   hasAthlete: boolean | null
 }
@@ -55,12 +57,29 @@ function blankFrameState(overrides: Partial<FrameAnnotationState> = {}): FrameAn
     waterY: null,
     splashTopY: null,
     splashHeightPx: null,
+    lineStatus: null,
     splashRoi: null,
     splashRoiStatus: null,
     hasSplash: null,
     hasAthlete: null,
     ...overrides,
   }
+}
+
+function isConfirmedLine(state: FrameAnnotationState | undefined): boolean {
+  return state?.lineStatus === 'confirmed' && isFrameAnnotated(state)
+}
+
+function hasConfirmedAnnotation(state: FrameAnnotationState | undefined): boolean {
+  return isConfirmedLine(state) || state?.splashRoiStatus === 'confirmed'
+}
+
+function hasSaveableFrameState(state: FrameAnnotationState | undefined): boolean {
+  return (
+    hasConfirmedAnnotation(state) ||
+    state?.hasSplash != null ||
+    state?.hasAthlete != null
+  )
 }
 
 function effectiveHasSplash(state: FrameAnnotationState | undefined): boolean {
@@ -95,7 +114,7 @@ export default function HeightAnnotatePage() {
   const [selectedFrameIds, setSelectedFrameIds] = useState<number[]>([])
   const [currentFrameId, setCurrentFrameId] = useState<number | null>(null)
   const [frameLines, setFrameLines] = useState<Record<number, FrameAnnotationState>>({})
-  const [annotationMode, setAnnotationMode] = useState<'lines' | 'box'>('lines')
+  const [annotationMode, setAnnotationMode] = useState<'lines' | 'box'>('box')
   const [defaultWaterY, setDefaultWaterY] = useState<number | null>(null)
   const [saveBusy, setSaveBusy] = useState(false)
   const [deleteBusy, setDeleteBusy] = useState(false)
@@ -125,13 +144,14 @@ export default function HeightAnnotatePage() {
   const curve = prep.result?.curve ?? []
   const sampledIds = prep.result?.sampled_frame_ids ?? []
   const peakFrameId = prep.result?.peak_frame_id ?? null
-  const peakSelectionMode = prep.result?.peak_selection_mode ?? 'xgb_peak_060b'
+  const peakSelectionMode = prep.result?.peak_selection_mode ?? 'xgb_peak'
   const mog2ChangePeakFrameId = prep.result?.mog2_change_peak_frame_id ?? null
   const mog2HeightPeakFrameId = prep.result?.mog2_height_peak_frame_id ?? null
   const diffPeakFrameId = prep.result?.diff_peak_frame_id ?? null
   const heightPeakFrameId = prep.result?.height_peak_frame_id ?? null
   const combinedChangePeakFrameId = prep.result?.combined_change_peak_frame_id ?? null
   const vRefDiffPeakFrameId = prep.result?.v_ref_diff_peak_frame_id ?? peakFrameId
+  const xgbPeakFrameId = prep.result?.xgb_peak_frame_id ?? peakFrameId
 
   const applyPrepResult = useCallback(
     (
@@ -172,6 +192,7 @@ export default function HeightAnnotatePage() {
             waterY: existing?.waterY ?? w,
             splashTopY: existing?.splashTopY ?? s,
             splashHeightPx: existing?.splashHeightPx ?? null,
+            lineStatus: existing?.lineStatus ?? 'draft',
             splashRoi: existing?.splashRoi ?? null,
             splashRoiStatus: existing?.splashRoiStatus ?? null,
             hasSplash: existing?.hasSplash ?? null,
@@ -191,7 +212,7 @@ export default function HeightAnnotatePage() {
           video_rel_path: rel,
           dataset_id: selectedVideoRef.current?.dataset_id ?? null,
           sample_fps: sampleFps,
-          peak_selection_mode: isExtractOnlyVideoRel(rel) ? 'extract_only' : 'xgb_peak_060b',
+          peak_selection_mode: isExtractOnlyVideoRel(rel) ? 'extract_only' : 'xgb_peak',
           tier1_search_mode: 'full_frame',
         })
       } catch (e) {
@@ -208,6 +229,7 @@ export default function HeightAnnotatePage() {
       setLoadError(null)
       setCacheStale(false)
       setSelectedVideo(video)
+      setAnnotationMode('box')
       prep.reset()
       prepInitKeyRef.current = null
       manualWaterYFramesRef.current.clear()
@@ -235,6 +257,7 @@ export default function HeightAnnotatePage() {
               waterY: fr.water_y ?? null,
               splashTopY: fr.splash_top_y ?? null,
               splashHeightPx: fr.splash_height_px ?? null,
+              lineStatus: fr.annotated ? 'confirmed' : null,
               splashRoi: fr.splash_roi_xyxy ?? null,
               splashRoiStatus: fr.splash_roi_xyxy ? 'confirmed' : null,
               hasSplash: fr.has_splash ?? null,
@@ -338,6 +361,7 @@ export default function HeightAnnotatePage() {
           waterY: cur?.waterY ?? w,
           splashTopY: cur?.splashTopY ?? s,
           splashHeightPx: cur?.splashHeightPx ?? null,
+          lineStatus: cur?.lineStatus ?? 'draft',
           splashRoi: cur?.splashRoi ?? null,
           splashRoiStatus: cur?.splashRoiStatus ?? null,
           hasSplash: cur?.hasSplash ?? null,
@@ -351,14 +375,19 @@ export default function HeightAnnotatePage() {
     if (currentFrameId == null || videoHeight == null) return
     manualWaterYFramesRef.current.add(currentFrameId)
     setDefaultWaterY(y)
-    setFrameLines((prev) =>
-      propagateWaterY(prev, {
+    setFrameLines((prev) => {
+      const next = propagateWaterY(prev, {
         sourceFrameId: currentFrameId,
         newWaterY: y,
         manualFrameIds: manualWaterYFramesRef.current,
         videoHeight,
-      }) as typeof prev,
-    )
+      }) as typeof prev
+      next[currentFrameId] = blankFrameState({
+        ...next[currentFrameId],
+        lineStatus: 'confirmed',
+      })
+      return next
+    })
   }
 
   const setSplashTopY = (y: number) => {
@@ -369,6 +398,7 @@ export default function HeightAnnotatePage() {
         waterY: prev[currentFrameId]?.waterY ?? defaultWaterY,
         splashTopY: y,
         splashHeightPx: prev[currentFrameId]?.splashHeightPx ?? null,
+        lineStatus: 'confirmed',
         splashRoi: prev[currentFrameId]?.splashRoi ?? null,
         splashRoiStatus: prev[currentFrameId]?.splashRoiStatus ?? null,
         hasSplash: prev[currentFrameId]?.hasSplash ?? null,
@@ -385,6 +415,7 @@ export default function HeightAnnotatePage() {
         waterY: prev[currentFrameId]?.waterY ?? defaultWaterY,
         splashTopY: prev[currentFrameId]?.splashTopY ?? null,
         splashHeightPx: prev[currentFrameId]?.splashHeightPx ?? null,
+        lineStatus: prev[currentFrameId]?.lineStatus ?? null,
         splashRoi: roi,
         splashRoiStatus: 'confirmed',
         hasSplash: prev[currentFrameId]?.hasSplash ?? null,
@@ -400,6 +431,7 @@ export default function HeightAnnotatePage() {
         waterY: prev[frameId]?.waterY ?? defaultWaterY,
         splashTopY: prev[frameId]?.splashTopY ?? null,
         splashHeightPx: prev[frameId]?.splashHeightPx ?? null,
+        lineStatus: prev[frameId]?.lineStatus ?? null,
         splashRoi: roi,
         splashRoiStatus: 'draft',
         hasSplash: prev[frameId]?.hasSplash ?? null,
@@ -417,6 +449,7 @@ export default function HeightAnnotatePage() {
         [frameId]: blankFrameState({
           ...cur,
           waterY: cur?.waterY ?? defaultWaterY,
+          lineStatus: cur?.lineStatus ?? null,
           hasSplash: !effectiveHasSplash(cur),
         }),
       }
@@ -431,6 +464,7 @@ export default function HeightAnnotatePage() {
         [frameId]: blankFrameState({
           ...cur,
           waterY: cur?.waterY ?? defaultWaterY,
+          lineStatus: cur?.lineStatus ?? null,
           hasAthlete: !effectiveHasAthlete(cur),
         }),
       }
@@ -453,6 +487,7 @@ export default function HeightAnnotatePage() {
       !extractOnly &&
       videoMeta?.has_prep_cache &&
       videoMeta.prep_cache_peak_selection_mode != null &&
+      videoMeta.prep_cache_peak_selection_mode !== 'xgb_peak' &&
       videoMeta.prep_cache_peak_selection_mode !== 'xgb_peak_060b' &&
       videoMeta.prep_cache_peak_selection_mode !== 'extract_only'
     if (fpsMismatch || peakModeMismatch) {
@@ -511,7 +546,7 @@ export default function HeightAnnotatePage() {
   const annotatedIds = useMemo(() => {
     const ids = new Set<number>()
     for (const [fid, ln] of Object.entries(frameLines)) {
-      if (isFrameAnnotated(ln)) ids.add(Number(fid))
+      if (hasConfirmedAnnotation(ln)) ids.add(Number(fid))
     }
     return ids
   }, [frameLines])
@@ -540,9 +575,9 @@ export default function HeightAnnotatePage() {
     return ids
   }, [frameLines])
 
-  const hasAnnotatedFrame = useMemo(
-    () => selectedFrameIds.some((id) => annotatedIds.has(id)),
-    [selectedFrameIds, annotatedIds],
+  const hasSaveableFrame = useMemo(
+    () => Object.values(frameLines).some((ln) => hasSaveableFrameState(ln)),
+    [frameLines],
   )
 
   const handleSave = async () => {
@@ -556,6 +591,7 @@ export default function HeightAnnotatePage() {
         if (
           ln.hasSplash != null ||
           ln.hasAthlete != null ||
+          isConfirmedLine(ln) ||
           ln.splashRoiStatus === 'confirmed'
         ) {
           frameIdsToSave.add(Number(fid))
@@ -563,16 +599,16 @@ export default function HeightAnnotatePage() {
       }
       const frames: SidecarFrame[] = [...frameIdsToSave].sort((a, b) => a - b).map((id) => {
         const ln = frameLines[id]
-        const annotated = isFrameAnnotated(ln)
+        const annotated = isConfirmedLine(ln)
         const confirmedRoi = ln?.splashRoiStatus === 'confirmed' ? ln.splashRoi : null
         return {
           frame_id: id,
           timestamp_ms: tsMap.get(id) ?? 0,
-          water_y: ln?.waterY ?? defaultWaterY ?? null,
-          splash_top_y: ln?.splashTopY ?? null,
+          water_y: annotated ? ln?.waterY ?? null : null,
+          splash_top_y: annotated ? ln?.splashTopY ?? null : null,
           splash_roi_xyxy: confirmedRoi,
           splash_roi_source: confirmedRoi ? 'manual' : null,
-          has_splash: annotated || isSplashLocked(ln) ? true : ln?.hasSplash ?? null,
+          has_splash: annotated || confirmedRoi ? true : ln?.hasSplash ?? null,
           has_athlete: ln?.hasAthlete ?? null,
           annotated,
         }
@@ -675,7 +711,7 @@ export default function HeightAnnotatePage() {
       }
       if (
         shouldSaveAnnotation(e.key, target, mods) &&
-        hasAnnotatedFrame &&
+        hasSaveableFrame &&
         !saveBusy &&
         prep.done
       ) {
@@ -692,7 +728,7 @@ export default function HeightAnnotatePage() {
     clearFrameSelection,
     toggleSplashProperty,
     toggleAthleteProperty,
-    hasAnnotatedFrame,
+    hasSaveableFrame,
     saveBusy,
     prep.done,
     handleSave,
@@ -710,6 +746,7 @@ export default function HeightAnnotatePage() {
         waterY: prev.waterY,
         splashTopY: prev.splashTopY,
         splashHeightPx: p[currentFrameId]?.splashHeightPx ?? null,
+        lineStatus: 'draft',
         splashRoi: p[currentFrameId]?.splashRoi ?? null,
         splashRoiStatus: p[currentFrameId]?.splashRoiStatus ?? null,
         hasSplash: p[currentFrameId]?.hasSplash ?? null,
@@ -728,6 +765,7 @@ export default function HeightAnnotatePage() {
         waterY: w,
         splashTopY: s,
         splashHeightPx: p[currentFrameId]?.splashHeightPx ?? null,
+        lineStatus: 'draft',
         splashRoi: p[currentFrameId]?.splashRoi ?? null,
         splashRoiStatus: p[currentFrameId]?.splashRoiStatus ?? null,
         hasSplash: p[currentFrameId]?.hasSplash ?? null,
@@ -753,6 +791,7 @@ export default function HeightAnnotatePage() {
         waterY: prev[currentFrameId]?.waterY ?? defaultWaterY,
         splashTopY: prev[currentFrameId]?.splashTopY ?? null,
         splashHeightPx: prev[currentFrameId]?.splashHeightPx ?? null,
+        lineStatus: prev[currentFrameId]?.lineStatus ?? null,
         splashRoi: null,
         splashRoiStatus: null,
         hasSplash: prev[currentFrameId]?.hasSplash ?? null,
@@ -978,6 +1017,7 @@ export default function HeightAnnotatePage() {
               combinedChangePeakFrameId={combinedChangePeakFrameId}
               peakSelectionMode={peakSelectionMode}
               vRefDiffPeakFrameId={vRefDiffPeakFrameId}
+              xgbPeakFrameId={xgbPeakFrameId}
               selectedFrameId={currentFrameId}
               onSelectFrame={(id) => setCurrentFrameId(id)}
             />
@@ -1011,7 +1051,7 @@ export default function HeightAnnotatePage() {
             <button
               type="button"
               onClick={handleSave}
-              disabled={!hasAnnotatedFrame || saveBusy || !prep.done}
+              disabled={!hasSaveableFrame || saveBusy || !prep.done}
               className="w-full py-2 rounded-lg bg-emerald-700 hover:bg-emerald-600 disabled:opacity-50 text-sm font-medium"
             >
               {saveBusy ? 'Saving…' : 'Save annotation'}
