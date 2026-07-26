@@ -4,6 +4,10 @@ This directory is the standalone Windows annotation delivery repository for
 `mt_splash_annotate`. Changes here can affect non-technical Windows operators
 who install or reinstall with a one-line PowerShell command.
 
+Also follow the root project rules in `../../AGENTS.md`. When rules overlap,
+this file is stricter for Windows annotation delivery, reinstall behavior, and
+operator-facing PowerShell guidance.
+
 ## Release And Install Discipline
 
 - `src/annotation` is published separately to `github.com:ziggear/mt_splash_annotate.git`.
@@ -11,6 +15,7 @@ who install or reinstall with a one-line PowerShell command.
 - After pushing, verify the remote content with a fixed commit SHA raw URL, not only `raw.githubusercontent.com/.../main/...`, because `main` raw URLs can be cached.
 - When giving an operator command, prefer a single `iwr <script.ps1> ...` command. Put backup, delete, reinstall, process cleanup, and install details inside the script.
 - Do not give non-technical operators commands that require editing paths, setting environment variables, manually deleting folders, or composing multi-step PowerShell.
+- Do not include developer command transcripts such as test, build, commit, or push commands in operator-facing summaries. Report the user update entry point, commit SHA, produced artifact, and verification result instead.
 
 ## XGBoost Model Rules
 
