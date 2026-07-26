@@ -13,8 +13,8 @@ import 'rc-tree/assets/index.css'
 import {
   addHeightAnnotDataset,
   browseHeightAnnot,
+  dataExportUrl,
   getHeightAnnotDatasets,
-  roiExportUrl,
   selectHeightAnnotFolder,
   setActiveHeightAnnotDataset,
   type BrowseVideo,
@@ -278,10 +278,10 @@ const FolderTreeBrowser = forwardRef<FolderTreeBrowserHandle, Props>(function Fo
           Refresh
         </button>
         <a
-          href={roiExportUrl(activeDatasetId)}
+          href={dataExportUrl(activeDatasetId)}
           className="text-xs px-2 py-1 rounded border border-gray-600 text-gray-300 hover:bg-gray-800"
         >
-          Export CSV
+          Export Data
         </a>
       </div>
       {error && <p className="text-xs text-red-400">{error}</p>}

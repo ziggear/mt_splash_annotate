@@ -232,6 +232,11 @@ export function roiExportUrl(datasetId?: string | null): string {
   return `${BASE}/roi-export.csv${q}`
 }
 
+export function dataExportUrl(datasetId?: string | null): string {
+  const q = datasetId ? `?dataset_id=${encodeURIComponent(datasetId)}` : ''
+  return `${BASE}/data-export.zip${q}`
+}
+
 export function browseHeightAnnot(rel = '', datasetId?: string | null): Promise<BrowseResponse> {
   const params = new URLSearchParams()
   if (rel) params.set('rel', rel)

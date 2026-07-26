@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import logging
+import tempfile
 import threading
 import time
 import uuid
@@ -14,6 +15,7 @@ from typing import Any, Optional
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel, Field
+from starlette.background import BackgroundTask
 
 from ..height_annot.paths import (
     LegacyFolderExcluded,
@@ -53,6 +55,7 @@ from ..height_annot.schema import (
     sidecar_to_dict,
     validate_sidecar,
 )
+from ..height_annot.data_export import build_height_annot_data_export_zip
 from ..height_annot.roi_export import export_roi_csv
 
 logger = logging.getLogger(__name__)
@@ -190,6 +193,29 @@ def export_roi_annotations(dataset_id: Optional[str] = Query(default=None)) -> R
         raise _http_from_path_error(exc) from exc
     headers = {"Content-Disposition": f'attachment; filename="height_annot_roi_{dsid}.csv"'}
     return Response(content=csv_text, media_type="text/csv", headers=headers)
+
+
+@router.get("/data-export.zip")
+def export_height_annot_data(dataset_id: Optional[str] = Query(default=None)) -> FileResponse:
+    dsid = _request_dataset_id(dataset_id)
+    tmp = tempfile.NamedTemporaryFile(prefix="height_annot_data_", suffix=".zip", delete=False)
+    tmp_path = Path(tmp.name)
+    tmp.close()
+    try:
+        dataset = get_dataset(dsid)
+        result = build_height_annot_data_export_zip(dataset, tmp_path)
+    except (DatasetError, FileNotFoundError) as exc:
+        tmp_path.unlink(missing_ok=True)
+        raise _http_from_path_error(exc) from exc
+    except Exception:
+        tmp_path.unlink(missing_ok=True)
+        raise
+    return FileResponse(
+        result.zip_path,
+        media_type="application/zip",
+        filename=result.filename,
+        background=BackgroundTask(lambda path: Path(path).unlink(missing_ok=True), str(result.zip_path)),
+    )
 
 
 @router.get("/browse")
