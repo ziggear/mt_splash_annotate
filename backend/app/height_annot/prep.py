@@ -57,6 +57,7 @@ class PrepResult:
     xgb_peak_score: float | None = None
     xgb_topk_frame_ids: list[int] | None = None
     xgb_topk_scores: list[float] | None = None
+    xgb_frame_scores: list[dict[str, float | int]] | None = None
     xgb_model_name: str = DEFAULT_MODEL_NAME
     xgb_feature_set: str = DEFAULT_MODEL_NAME
     xgb_feature_status: str = ""
@@ -158,6 +159,7 @@ def run_prep(
             "xgb_peak_score": None,
             "xgb_topk_frame_ids": [],
             "xgb_topk_scores": [],
+            "xgb_frame_scores": [],
             "xgb_model_name": DEFAULT_MODEL_NAME,
             "xgb_feature_set": DEFAULT_MODEL_NAME,
             "xgb_feature_status": "extract_only",
